@@ -16,6 +16,8 @@ from scipy.cluster.hierarchy import inconsistent
 
 def generate_dendrogram(x, linkagemeth, ax):
 
+    # print(x)
+    # print(np.max(x))
     Z2 = linkage(x, linkagemeth)
     dendrogram(
         Z2,
@@ -27,7 +29,17 @@ def generate_dendrogram(x, linkagemeth, ax):
         ax=ax
     )
 
-def generate_multivariate_normal(samplesz, ncenters):
+def generate_uniform(samplesz):
+    """Generate uniform data
+
+    Args:
+
+    Returns:
+    np.ndarray: nxm row
+    """
+    return np.random.rand(samplesz, 2)
+
+def generate_multivariate_normal(samplesz, ncenters, mus=[], cov=[]):
     """Generate multinomial data
 
     Args:
@@ -43,11 +55,17 @@ def generate_multivariate_normal(samplesz, ncenters):
     diff = samplesz - (truncsz*ncenters)
     partsz[-1] += diff
 
+    if len(mus) == 0:
+        mus = np.random.rand(ncenters, 2)
+        cov = np.eye(2)
+
+    ind = 0
     for i in range(ncenters):
-        mu = np.random.rand(2)
-        cov = np.eye(2) * 0.005
-        x[i:i+partsz[i]] = np.random.multivariate_normal(mu, cov,
-                                                         size=[partsz[i]])
+        # mu = np.random.rand(2)
+        mu = mus[i]
+        x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov,
+                                                         size=partsz[i])
+        ind += partsz[i]
     return x
 
 def plot_scatter(x, ax):
@@ -69,38 +87,47 @@ def generate_data(samplesz):
     """
 
     data = []
-    data.append(generate_multivariate_normal(samplesz, 1)) # k = 0
-    data.append(generate_multivariate_normal(samplesz, 3)) # k = 0
-    data.append(generate_multivariate_normal(samplesz, 5)) # k = 1
+    data.append(generate_uniform(samplesz))
+
+    c = 0.7
+    mus = np.ones((2, 2))*c; mus[1, :] *= -1
+
+    cov = np.eye(2) * 0.15
+    data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
+
+    cov = np.eye(2) * 0.012
+    data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
+
     return data
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    #parser.add_argument('--outdir', required=True, help='Output directory')
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
     datefmt='%Y%m%d %H:%M', level=logging.DEBUG)
 
     np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(0)  # for repeatability of this tutorial
 
-    # plt.figure(figsize=(10,10))
+    np.random.seed(0)
+    samplesz = 200
+
     linkagemeths = ['single', 'complete', 'average',
                     'centroid', 'median', 'ward']
-    n = len(linkagemeths)
-    k = 3 # number of data distributions
-    samplesz = 100
-
-    fig, ax = plt.subplots(k, n+1, figsize=((n+1)*10, k*10))
+    nlinkagemeths = len(linkagemeths)
 
     data = generate_data(samplesz)
-    
-    for i in range(k):
+    ndistribs = len(data)
+
+    fig, ax = plt.subplots(ndistribs, nlinkagemeths+1,
+                           figsize=((nlinkagemeths+1)*10, ndistribs*10))
+
+    for i in range(ndistribs):
         x = data[i]
         plot_scatter(x, ax[i, 0])
         for j, l in enumerate(linkagemeths):
             generate_dendrogram(x, l, ax[i, j+1])
+
     plt.savefig('/tmp/foo.pdf')
 
 if __name__ == "__main__":
