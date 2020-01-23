@@ -95,7 +95,7 @@ def generate_data(samplesz):
     cov = np.eye(2) * 0.15
     data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
 
-    cov = np.eye(2) * 0.012
+    cov = np.eye(2) * 0.015
     data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
 
     return data
@@ -127,6 +127,12 @@ def main():
         plot_scatter(x, ax[i, 0])
         for j, l in enumerate(linkagemeths):
             generate_dendrogram(x, l, ax[i, j+1])
+
+    for ax_, col in zip(ax[0, 1:], linkagemeths):
+        ax_.set_title(col, size=36)
+
+    for ax_, row in zip(ax[:, 0], ['Uniform', 'Normal_0.15', 'Normal_0.015']):
+        ax_.set_ylabel(row + '  ', rotation=90, size=36)
 
     plt.savefig('/tmp/foo.pdf')
 
