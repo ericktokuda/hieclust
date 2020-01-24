@@ -14,6 +14,8 @@ from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+
 def generate_dendrogram(x, linkagemeth, ax):
 
     # print(x)
@@ -29,7 +31,7 @@ def generate_dendrogram(x, linkagemeth, ax):
         ax=ax
     )
 
-def generate_uniform(samplesz):
+def generate_uniform(samplesz, ndims):
     """Generate uniform data
 
     Args:
@@ -37,9 +39,9 @@ def generate_uniform(samplesz):
     Returns:
     np.ndarray: nxm row
     """
-    return np.random.rand(samplesz, 2)
+    return np.random.rand(samplesz, ndims)
 
-def generate_multivariate_normal(samplesz, ncenters, mus=[], cov=[]):
+def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], cov=[]):
     """Generate multinomial data
 
     Args:
@@ -48,7 +50,63 @@ def generate_multivariate_normal(samplesz, ncenters, mus=[], cov=[]):
     np.ndarray: nxm row
     """
 
-    x = np.ndarray((samplesz, 2), dtype=float)
+    x = np.ndarray((samplesz, ndims), dtype=float)
+
+    truncsz = samplesz // ncenters
+    partsz = [truncsz] * ncenters
+    diff = samplesz - (truncsz*ncenters)
+    partsz[-1] += diff
+
+    if len(mus) == 0:
+        mus = np.random.rand(ncenters, ndims)
+        cov = np.eye(ndims)
+
+    ind = 0
+    for i in range(ncenters):
+        mu = mus[i]
+        x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov, size=partsz[i])
+        ind += partsz[i]
+    return x
+
+def generate_exponential(samplesz, ndims, ncenters, mus=[]):
+    """Generate multinomial data
+
+    Args:
+
+    Returns:
+    np.ndarray: nxm row
+    """
+
+    x = np.ndarray((samplesz, ndims), dtype=float)
+
+    truncsz = samplesz // ncenters
+    partsz = [truncsz] * ncenters
+    diff = samplesz - (truncsz*ncenters)
+    partsz[-1] += diff
+
+    if len(mus) == 0:
+        mus = np.random.rand(ncenters, ndims)
+        cov = np.eye(ndims)
+
+    ind = 0
+    for i in range(ncenters):
+        mu = mus[i]
+        for j in range(ndims):
+            x[ind:ind+partsz[i], j] = np.random.exponential(size=partsz[i])
+        ind += partsz[i]
+
+    return x
+
+def generate_power(samplesz, ndims, ncenters, power, mus=[]):
+    """Generate multinomial data
+
+    Args:
+
+    Returns:
+    np.ndarray: nxm row
+    """
+
+    x = np.ndarray((samplesz, ndims), dtype=float)
 
     truncsz = samplesz // ncenters
     partsz = [truncsz] * ncenters
@@ -61,22 +119,26 @@ def generate_multivariate_normal(samplesz, ncenters, mus=[], cov=[]):
 
     ind = 0
     for i in range(ncenters):
-        # mu = np.random.rand(2)
         mu = mus[i]
-        x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov,
-                                                         size=partsz[i])
+        xs = 1 - np.random.power(a=power, size=partsz[i])
+        ys = 1 - np.random.power(a=power, size=partsz[i])
+        x[ind:ind+partsz[i], 0] = xs
+        x[ind:ind+partsz[i], 1] = ys
         ind += partsz[i]
     return x
 
-def plot_scatter(x, ax):
+def plot_scatter(x, ax, ndims):
     """Scatter plot
 
     Args:
     x(np.ndarray): nx2 array, being n the number of points
     """
-    ax.scatter(x[:,0], x[:,1])
+    if ndims == 2:
+        ax.scatter(x[:,0], x[:,1])
+    elif ndims == 3:
+        ax.scatter(x[:, 0], x[:, 1], x[:, 2])
 
-def generate_data(samplesz):
+def generate_data(samplesz, ndims):
     """Synthetic data
 
     Args:
@@ -87,16 +149,35 @@ def generate_data(samplesz):
     """
 
     data = []
-    data.append(generate_uniform(samplesz))
 
+    # 0 cluster
+    data.append(generate_uniform(samplesz, ndims))
+
+    # 1 cluster (gaussian)
+    mus = np.zeros((1, ndims))
+    cov = np.eye(ndims) * 0.15
+    data.append(generate_multivariate_normal(samplesz, ndims, ncenters=1,
+                                             mus=mus, cov=cov))
+
+    # 1 cluster (power)
+    mus = np.zeros((1, ndims))
+    data.append(generate_power(samplesz, ndims, ncenters=1, power=3, mus=mus))
+
+    # 1 cluster (exponential)
+    mus = np.zeros((1, ndims))
+    data.append(generate_exponential(samplesz, ndims, ncenters=1, mus=mus))
+
+    # 2 clusters (gaussians)
     c = 0.7
-    mus = np.ones((2, 2))*c; mus[1, :] *= -1
+    mus = np.ones((2, ndims))*c; mus[1, :] *= -1
+    cov = np.eye(ndims) * 0.1
+    data.append(generate_multivariate_normal(samplesz, ndims, ncenters=2,
+                                             mus=mus,cov=cov))
 
-    cov = np.eye(2) * 0.15
-    data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
-
-    cov = np.eye(2) * 0.015
-    data.append(generate_multivariate_normal(samplesz, ncenters=2, mus=mus, cov=cov))
+    # 2 clusters (gaussians)
+    cov = np.eye(ndims) * 0.01
+    data.append(generate_multivariate_normal(samplesz, ndims, ncenters=2,
+                                             mus=mus, cov=cov))
 
     return data
 
@@ -116,22 +197,40 @@ def main():
                     'centroid', 'median', 'ward']
     nlinkagemeths = len(linkagemeths)
 
-    data = generate_data(samplesz)
+    ndims = 2
+    data = generate_data(samplesz, ndims)
     ndistribs = len(data)
 
-    fig, ax = plt.subplots(ndistribs, nlinkagemeths+1,
-                           figsize=((nlinkagemeths+1)*10, ndistribs*10))
+    nrows = ndistribs
+    ncols = nlinkagemeths + 1
+    fig = plt.figure(figsize=(ncols*10, nrows*10))
+    ax = np.array([[None]*ncols]*nrows)
+
+    nsubplots = nrows * ncols
+
+    for subplotidx in range(nsubplots):
+        i = subplotidx // ncols
+        j = subplotidx % ncols
+
+        if ndims == 3 and j == 0: proj = '3d'
+        else: proj = None
+
+        ax[i, j] = fig.add_subplot(nrows, ncols, subplotidx+1,
+                               projection=proj)
 
     for i in range(ndistribs):
         x = data[i]
-        plot_scatter(x, ax[i, 0])
+        plot_scatter(x, ax[i, 0], ndims)
         for j, l in enumerate(linkagemeths):
             generate_dendrogram(x, l, ax[i, j+1])
 
     for ax_, col in zip(ax[0, 1:], linkagemeths):
         ax_.set_title(col, size=36)
 
-    for ax_, row in zip(ax[:, 0], ['Uniform', 'Normal_0.15', 'Normal_0.015']):
+    plottitles = [ 'Uniform', '1_Normal_0.1', '1_Exponential',
+        '1_Power_2', '2_Normal_0.1', '1_Exponential_0.01', ]
+
+    for ax_, row in zip(ax[:, 0], plottitles):
         ax_.set_ylabel(row + '  ', rotation=90, size=36)
 
     plt.savefig('/tmp/foo.pdf')
