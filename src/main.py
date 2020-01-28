@@ -181,6 +181,61 @@ def generate_data(samplesz, ndims):
 
     return data
 
+def get_element_ids(z, nelements, clustid):
+    if clustid < nelements:
+        return [clustid]
+
+    zid = int(clustid - nelements)
+    leftid = z[zid, 0]
+    rightid = z[zid, 1]
+    elids1 = get_element_ids(z, nelements, leftid)
+    elids2 = get_element_ids(z, nelements, rightid)
+    return np.concatenate((elids1, elids2)).astype(int)
+
+def get_last_joinid_given_relative_height(z, n, relheight):
+    maxdist = z[-1, 2]
+
+    if maxdist <= relheight:
+        return z.shape[0] - 1
+
+    njoins = z.shape[0]
+
+    accdist = 0
+    for i in np.arange(njoins-1, -2, -1):
+        l = z[i, 2] / maxdist
+        if l < relheight: # inds less than or equal i corresponds to the merges
+            break
+    return i
+
+def get_last_joinid_given_nclusters(z, n, nclusters):
+    njoins = z.shape[0]
+    return np.min([np.max([njoins - nclusters, -1]), njoins-1])
+
+def get_clustids_from_joinid(joinid, z, n):
+    allids = set(range(n+joinid+1))
+    mergedids = set(z[:joinid+1, :2].flatten().astype(int))
+    clustids = allids.difference(mergedids)
+    return clustids
+
+# def count_nelements_from_clustid(clustid):
+
+def get_joinid_from_clustid(clustid, z, n):
+    return clustid - n
+
+def get_dist_from_joinid(joinid, z):
+    if joinid < 0 or joinid > len(z):
+        print('Index joindid ({}) is out of range'.format(joinid))
+    return z[joinid, 2]
+
+def get_clusters_limited_by_dist(dist, z, inclusive=True):
+    dists = z[:, 2]
+
+    for i in range(len(z)):
+        if z[i, 2] > dist: break
+
+    lastjoinid = i - 1
+    # get_element_ids(z, nelements, clustid):
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     args = parser.parse_args()
@@ -189,8 +244,60 @@ def main():
     datefmt='%Y%m%d %H:%M', level=logging.DEBUG)
 
     np.set_printoptions(precision=5, suppress=True)
-
     np.random.seed(0)
+
+    thresh = 0.25 # maximum relative distance between elements in the same cluster
+    x1 = np.array([ [0, 0], [0, 4], [10, 0], [10, 1]])
+    x2 = np.array([ [0, 0], [0, 2], [0, 4], [0, 6],
+                  [10, 0], [10, 1], [10, 2]])
+    x3 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10],
+                  [10, 0], [10, 1], [10, 1], [10, 3]])
+    x4 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10], [0, 15],
+                  [10, 0], [10, 1], [10, 2], [10, 3]])
+    x = x4
+
+    n = x.shape[0]
+
+    linkagemeth = 'single'
+    z = linkage(x, linkagemeth)
+    # dendrogram(z)
+    # plt.show()
+    nclusters = n + z.shape[0]
+    minclustsize = 2
+    minnclusters = 1
+    L = z[-1, 2]
+    
+    # {joinid \in N | -1  <= joinid <= n}
+    print(x)
+    print(z)
+
+    started = False # Method should stop from 2clusters on
+    clustids = set([n*2-2])
+
+    for i in range(1, n+1): # variable for the number of clusters
+        # In each loop we expand the children
+        lastjoinid = get_last_joinid_given_nclusters(z, n, i)
+        clustid = lastjoinid + n
+        print(i, lastjoinid, clustid, clustids)
+        # input()
+
+        if len(clustids) > 1:  started = True
+
+        if started and len(clustids) <= minnclusters:
+            break
+
+        for j in [0, 1]: # left and right children
+            els = get_element_ids(z, n, z[lastjoinid, j])
+            if len(els) >= minclustsize:
+                clustids.add(int(z[lastjoinid, j]))
+
+        clustids.remove(clustid)
+
+    joinid = clustids.pop() - n
+    l = z[joinid, 2]
+    print(clustid, (L-l)/L)
+    return
+
     samplesz = 200
 
     linkagemeths = ['single', 'complete', 'average',
@@ -233,7 +340,7 @@ def main():
     for ax_, row in zip(ax[:, 0], plottitles):
         ax_.set_ylabel(row + '  ', rotation=90, size=36)
 
-    plt.savefig('/tmp/foo.pdf')
+    plt.savefig('/tmp/{}d.pdf'.format(ndims))
 
 if __name__ == "__main__":
     main()
