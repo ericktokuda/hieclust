@@ -16,13 +16,11 @@ from scipy.cluster.hierarchy import inconsistent
 
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
+##########################################################
 def generate_dendrogram(x, linkagemeth, ax):
-
-    # print(x)
-    # print(np.max(x))
-    Z2 = linkage(x, linkagemeth)
+    z = linkage(x, linkagemeth)
     dendrogram(
-        Z2,
+        z,
         truncate_mode='lastp',
         p=30,
         leaf_rotation=90.,
@@ -30,26 +28,14 @@ def generate_dendrogram(x, linkagemeth, ax):
         show_contracted=True,
         ax=ax
     )
+    return z
 
+##########################################################
 def generate_uniform(samplesz, ndims):
-    """Generate uniform data
-
-    Args:
-
-    Returns:
-    np.ndarray: nxm row
-    """
     return np.random.rand(samplesz, ndims)
 
+##########################################################
 def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], cov=[]):
-    """Generate multinomial data
-
-    Args:
-
-    Returns:
-    np.ndarray: nxm row
-    """
-
     x = np.ndarray((samplesz, ndims), dtype=float)
 
     truncsz = samplesz // ncenters
@@ -68,15 +54,8 @@ def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], cov=[]):
         ind += partsz[i]
     return x
 
+##########################################################
 def generate_exponential(samplesz, ndims, ncenters, mus=[]):
-    """Generate multinomial data
-
-    Args:
-
-    Returns:
-    np.ndarray: nxm row
-    """
-
     x = np.ndarray((samplesz, ndims), dtype=float)
 
     truncsz = samplesz // ncenters
@@ -97,15 +76,8 @@ def generate_exponential(samplesz, ndims, ncenters, mus=[]):
 
     return x
 
+##########################################################
 def generate_power(samplesz, ndims, ncenters, power, mus=[]):
-    """Generate multinomial data
-
-    Args:
-
-    Returns:
-    np.ndarray: nxm row
-    """
-
     x = np.ndarray((samplesz, ndims), dtype=float)
 
     truncsz = samplesz // ncenters
@@ -127,17 +99,14 @@ def generate_power(samplesz, ndims, ncenters, power, mus=[]):
         ind += partsz[i]
     return x
 
+##########################################################
 def plot_scatter(x, ax, ndims):
-    """Scatter plot
-
-    Args:
-    x(np.ndarray): nx2 array, being n the number of points
-    """
     if ndims == 2:
         ax.scatter(x[:,0], x[:,1])
     elif ndims == 3:
         ax.scatter(x[:, 0], x[:, 1], x[:, 2])
 
+##########################################################
 def generate_data(samplesz, ndims):
     """Synthetic data
 
@@ -181,6 +150,7 @@ def generate_data(samplesz, ndims):
 
     return data
 
+##########################################################
 def get_element_ids(z, nelements, clustid):
     if clustid < nelements:
         return [clustid]
@@ -192,6 +162,7 @@ def get_element_ids(z, nelements, clustid):
     elids2 = get_element_ids(z, nelements, rightid)
     return np.concatenate((elids1, elids2)).astype(int)
 
+##########################################################
 def get_last_joinid_given_relative_height(z, n, relheight):
     maxdist = z[-1, 2]
 
@@ -207,26 +178,33 @@ def get_last_joinid_given_relative_height(z, n, relheight):
             break
     return i
 
-def get_last_joinid_given_nclusters(z, n, nclusters):
-    njoins = z.shape[0]
-    return np.min([np.max([njoins - nclusters, -1]), njoins-1])
-
+##########################################################
 def get_clustids_from_joinid(joinid, z, n):
     allids = set(range(n+joinid+1))
     mergedids = set(z[:joinid+1, :2].flatten().astype(int))
     clustids = allids.difference(mergedids)
     return clustids
 
-# def count_nelements_from_clustid(clustid):
+##########################################################
+def count_nelements_from_clustid(clustid, z):
+    npoints = z.shape[0] + 1
+    if clustid < npoints:
+        return 1
+    else:
+        joinid = int(clustid - npoints)
+        return z[joinid, 3]
 
+##########################################################
 def get_joinid_from_clustid(clustid, z, n):
     return clustid - n
 
+##########################################################
 def get_dist_from_joinid(joinid, z):
     if joinid < 0 or joinid > len(z):
         print('Index joindid ({}) is out of range'.format(joinid))
     return z[joinid, 2]
 
+##########################################################
 def get_clusters_limited_by_dist(dist, z, inclusive=True):
     dists = z[:, 2]
 
@@ -236,6 +214,62 @@ def get_clusters_limited_by_dist(dist, z, inclusive=True):
     lastjoinid = i - 1
     # get_element_ids(z, nelements, clustid):
 
+##########################################################
+def compute_relevance(data, linkageret, minclustrelsize=0.2):
+    """Compute relevance according to Luc's method
+
+    Args:
+    data(np.ndarray): data with columns as dimensions and rows as points
+    linkageret(np.ndarray): return of the scipy.linkage call
+    """
+
+    n = data.shape[0]
+    nclusters = n + linkageret.shape[0]
+    lastclustid = nclusters - 1
+    minclustsize = int(n * minclustrelsize)
+    # print(n, minclustrelsize, minclustsize)
+    # input()
+    minnclusters = 1
+    L = linkageret[-1, 2]
+    
+    started = False # Method should execute from 2clusters on
+    clustids = set([lastclustid])
+
+    nlargegroups = 1
+    for depth in range(0, n): # Depth of a node of the tree
+        # In each loop we expand the children
+        joinid = ( n - 2 ) - depth
+        clustid = joinid + n
+        if clustid not in clustids: continue
+
+        # print('depth:{}, joinid:{}, clustid:{}, clustids:{}, nlargegroups:{}'.\
+              # format(depth, joinid, clustid, clustids, nlargegroups))
+        if depth > 0 and not started and nlargegroups > 2:
+            # print('started')
+            started = True
+
+        if (started and (len(clustids) <= minnclusters)):
+            # print('leaving for loop, depth:', depth)
+            break
+
+        for j in [0, 1]: # left and right children
+            childid = linkageret[joinid, j]
+            count = count_nelements_from_clustid(childid, linkageret)
+            if count >= minclustsize:
+                clustids.add(int(linkageret[joinid, j]))
+                nlargegroups += 1
+
+        clustids.remove(clustid)
+        nlargegroups -= 1
+        if (len(clustids) == 0): break
+
+    # joinid = clustids.pop() - n
+    joinid = ( n - 2 ) - depth
+    l = linkageret[joinid, 2]
+    rel = (L-l)/L
+    return rel
+
+##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     args = parser.parse_args()
@@ -246,65 +280,32 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
 
-    thresh = 0.25 # maximum relative distance between elements in the same cluster
-    x1 = np.array([ [0, 0], [0, 4], [10, 0], [10, 1]])
-    x2 = np.array([ [0, 0], [0, 2], [0, 4], [0, 6],
-                  [10, 0], [10, 1], [10, 2]])
-    x3 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10],
-                  [10, 0], [10, 1], [10, 1], [10, 3]])
-    x4 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10], [0, 15],
-                  [10, 0], [10, 1], [10, 2], [10, 3]])
-    x = x4
+    # thresh = 0.25 # maximum relative distance between elements in the same cluster
+    # x1 = np.array([ [0, 0], [0, 4], [10, 0], [10, 1]])
+    # x2 = np.array([ [0, 0], [0, 2], [0, 4], [0, 6],
+                  # [10, 0], [10, 1], [10, 2]])
+    # x3 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10],
+                  # [10, 0], [10, 1], [10, 1], [10, 3]])
+    # x4 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10], [0, 15],
+                  # [10, 0], [10, 1], [10, 2], [10, 3]])
+    # x5 = np.array([[0.54881,0.71519],
+          # [0.60276, 0.54488],
+          # [0.42365, 0.64589],
+          # [0.43759, 0.89177],
+          # [0.96366, 0.38344],
+          # [0.79173, 0.52889]])
 
-    n = x.shape[0]
+    # x6 = np.random.rand(10, 2)
+    # x = x6
+    # print(x)
 
-    linkagemeth = 'single'
-    z = linkage(x, linkagemeth)
-    # dendrogram(z)
-    # plt.show()
-    nclusters = n + z.shape[0]
-    minclustsize = 2
-    minnclusters = 1
-    L = z[-1, 2]
-    
-    # {joinid \in N | -1  <= joinid <= n}
-    print(x)
-    print(z)
-
-    started = False # Method should stop from 2clusters on
-    clustids = set([n*2-2])
-
-    for i in range(1, n+1): # variable for the number of clusters
-        # In each loop we expand the children
-        lastjoinid = get_last_joinid_given_nclusters(z, n, i)
-        clustid = lastjoinid + n
-        print(i, lastjoinid, clustid, clustids)
-        # input()
-
-        if len(clustids) > 1:  started = True
-
-        if started and len(clustids) <= minnclusters:
-            break
-
-        for j in [0, 1]: # left and right children
-            els = get_element_ids(z, n, z[lastjoinid, j])
-            if len(els) >= minclustsize:
-                clustids.add(int(z[lastjoinid, j]))
-
-        clustids.remove(clustid)
-
-    joinid = clustids.pop() - n
-    l = z[joinid, 2]
-    print(clustid, (L-l)/L)
-    return
 
     samplesz = 200
-
+    ndims = 2
     linkagemeths = ['single', 'complete', 'average',
                     'centroid', 'median', 'ward']
     nlinkagemeths = len(linkagemeths)
 
-    ndims = 2
     data = generate_data(samplesz, ndims)
     ndistribs = len(data)
 
@@ -329,7 +330,13 @@ def main():
         x = data[i]
         plot_scatter(x, ax[i, 0], ndims)
         for j, l in enumerate(linkagemeths):
-            generate_dendrogram(x, l, ax[i, j+1])
+            z = generate_dendrogram(x, l, ax[i, j+1])
+            rel = compute_relevance(x, z)
+            plt.text(0.8, 0.9, 'rel:{:.3f}'.format(rel),
+                     horizontalalignment='center',
+                     verticalalignment='center',
+                     fontsize=30,
+                     transform = ax[i, j+1].transAxes)
 
     for ax_, col in zip(ax[0, 1:], linkagemeths):
         ax_.set_title(col, size=36)
