@@ -17,6 +17,16 @@ from scipy.cluster.hierarchy import inconsistent
 from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
+def visualize_clustering(x, linkagemeth, ax):
+    z = generate_dendrogram(x, linkagemeth, None)
+    dists = z[:, 2]
+    for j, ll in enumerate(sorted(dists, reverse=True)):
+        clustids = get_clusters(z, ll, minclustsize)
+        z = generate_dendrogram(x, linkagemeth, ax, ll, clustids)
+        plt.savefig('/tmp/{:02d}.png'.format(j))
+        ax.clear()
+
+##########################################################
 def generate_dendrogram(x, linkagemeth, ax, lthresh=None, clustids=[]):
     z = linkage(x, linkagemeth)
     dists = z[:, 2]
@@ -26,20 +36,11 @@ def generate_dendrogram(x, linkagemeth, ax, lthresh=None, clustids=[]):
     colors = n * (n - 1) * ['k']
     vividcolors = ['b', 'g', 'r', 'c', 'm']
 
-    # for clustid in clustids:
-        # colors[clustid]  = vividcolors.pop()
-
-    # print('##########################################################')
     for clustid in clustids:
         c = vividcolors.pop()
-        f = get_element_ids(z, n, clustid)
-        # f.append(clustid)
-        # print(type(f))
-        f = np.append(f, clustid)
-        # print((f.shape))
-        for ff in f:
-            # print(ff, c)
-            colors[ff]  = c
+        f, g = get_element_ids(z, n, clustid)
+        g = np.concatenate((g, [clustid]))
+        for ff in g: colors[ff]  = c
 
     if lthresh:
         epsilon = 0.000001
@@ -59,6 +60,7 @@ def generate_dendrogram(x, linkagemeth, ax, lthresh=None, clustids=[]):
             link_color_func=lambda k: colors[k],
             annotate_above=100
         )
+        ax.axhline(y=lthresh, linestyle='--')
     return z
 
 ##########################################################
@@ -150,6 +152,15 @@ def generate_data(samplesz, ndims):
 
     data = []
 
+    # 2 clusters (gaussians)
+    c = 0.7
+    mus = np.ones((2, ndims))*c; mus[1, :] *= -1
+    cov = np.eye(ndims) * 0.1
+    cov = np.eye(ndims) * 0.01
+    data.append(generate_multivariate_normal(samplesz, ndims, ncenters=2,
+                                             mus=mus, cov=cov))
+    return data
+
     # 0 cluster
     data.append(generate_uniform(samplesz, ndims))
 
@@ -186,14 +197,15 @@ def generate_data(samplesz, ndims):
 ##########################################################
 def get_element_ids(z, nelements, clustid):
     if clustid < nelements:
-        return [clustid]
+        return [clustid], []
 
     zid = int(clustid - nelements)
     leftid = z[zid, 0]
     rightid = z[zid, 1]
-    elids1 = get_element_ids(z, nelements, leftid)
-    elids2 = get_element_ids(z, nelements, rightid)
-    return np.concatenate((elids1, elids2)).astype(int)
+    elids1, linkids1 = get_element_ids(z, nelements, leftid)
+    elids2, linkids2 = get_element_ids(z, nelements, rightid)
+    linkids = np.concatenate((linkids1, linkids2, [leftid, rightid])).astype(int)
+    return np.concatenate((elids1, elids2)).astype(int), linkids
 
 ##########################################################
 def get_last_joinid_given_relative_height(z, n, relheight):
@@ -419,16 +431,17 @@ def main():
     minclustsize = int(minrelsize * samplesz)
     info('samplesize:{}, min:{}'.format(samplesz, minclustsize))
     ndims = 2
-    linkagemeths = ['single', 'complete', 'average',
-                    'centroid', 'median', 'ward']
-    # linkagemeths = ['complete']
+    # linkagemeths = ['single', 'complete', 'average',
+                    # 'centroid', 'median', 'ward']
+    linkagemeths = ['average']
     nlinkagemeths = len(linkagemeths)
 
     data = generate_data(samplesz, ndims)
     ndistribs = len(data)
 
     nrows = ndistribs
-    ncols = nlinkagemeths + 1
+    # ncols = nlinkagemeths + 1
+    ncols = nlinkagemeths
     fig = plt.figure(figsize=(ncols*10, nrows*10))
     ax = np.array([[None]*ncols]*nrows)
 
@@ -446,8 +459,9 @@ def main():
 
     for i in range(ndistribs):
         x = data[i]
-        plot_scatter(x, ax[i, 0], ndims)
-        for j, l in enumerate(linkagemeths):
+        # plot_scatter(x, ax[i, 0], ndims)
+        for jj, l in enumerate(linkagemeths):
+            j = jj - 1 # TODO fix
             z = generate_dendrogram(x, l, None)
             # print(minclustsize)
             rel, ll = compute_relevance(x, z, minclustsize)
@@ -455,7 +469,8 @@ def main():
             # print(clustids)
             # ax[i, j+1].clear()
             z = generate_dendrogram(x, l, ax[i, j+1], ll, clustids)
-            plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
+            plt.text(0.7, 0.9, '{}, rel:{:.3f}\nmin:{}'.format(len(clustids), rel,
+                                                               minclustsize),
                      horizontalalignment='center',
                      verticalalignment='center',
                      fontsize=50,
