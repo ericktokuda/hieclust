@@ -17,7 +17,7 @@ from scipy.cluster.hierarchy import inconsistent
 from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
+def plot_dendrogram(z, linkagemeth, ax, lthresh, dist, clustids):
     # z = linkage(x, linkagemeth)
     dists = z[:, 2]
     dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
@@ -31,6 +31,9 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
         f, g = get_descendants(z, n, clustid)
         g = np.concatenate((g, [clustid]))
         for ff in g: colors[ff]  = c
+
+    L = z[-1, 2]
+    lineh = (L - lthresh) / L
 
     epsilon = 0.000001
     dendrogram(
@@ -46,7 +49,7 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
         ax=ax,
         link_color_func=lambda k: colors[k],
     )
-    ax.axhline(y=lthresh, linestyle='--')
+    ax.axhline(y=lineh, linestyle='--')
 
 ##########################################################
 def generate_uniform(samplesz, ndims):
@@ -258,8 +261,16 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
 
     l = linkageret[parent - n, 2]
     # rel = (L-l)/L
-    rel = l / L
-    return clustids, rel
+    # rel = l / L
+    acc = 0
+    for cl in clustids:
+        acc += linkageret[cl - n, 2]
+
+    acc /= len(clustids)
+    # print(acc)
+    rel = (L - acc) / L
+
+    return clustids, rel, l / L
 
 ##########################################################
 def main():
@@ -319,9 +330,9 @@ def main():
 
     samplesz = 200
     minnclusters = 2
-    minrelsize = 0.4
+    minrelsize = 0.3
     minclustsize = int(minrelsize * samplesz)
-    ndims = 2
+    ndims = 3
 
     info('Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
          format(samplesz, minnclusters, minclustsize))
@@ -338,7 +349,9 @@ def main():
     ncols = nlinkagemeths + 1
     fig = plt.figure(figsize=(ncols*10, nrows*10))
     ax = np.array([[None]*ncols]*nrows)
-    fig.suptitle('Sample size:{}, minnclusters:{}', fontsize=60)
+    fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
+                 format(samplesz, minnclusters, minclustsize),
+                 fontsize=60)
 
     nsubplots = nrows * ncols
 
@@ -356,10 +369,9 @@ def main():
         plot_scatter(x, ax[i, 0], ndims)
         for j, l in enumerate(linkagemeths):
             z = linkage(x, l)
-            clustids, rel = filter_clustering(x, z, minclustsize, minnclusters)
-            print(i, j, rel)
+            clustids, rel, dist = filter_clustering(x, z, minclustsize, minnclusters)
             ll = rel
-            plot_dendrogram(z, l, ax[i, j+1], ll, clustids)
+            plot_dendrogram(z, l, ax[i, j+1], ll, dist, clustids)
             plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
                      horizontalalignment='center', verticalalignment='center',
                      fontsize=50, transform = ax[i, j+1].transAxes)
