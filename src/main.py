@@ -14,20 +14,51 @@ from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
-def generate_dendrogram(x, linkagemeth, ax):
+def generate_dendrogram(x, linkagemeth, ax, lthresh=None, clustids=[]):
     z = linkage(x, linkagemeth)
-    dendrogram(
-        z,
-        truncate_mode='lastp',
-        p=30,
-        leaf_rotation=90.,
-        leaf_font_size=12.,
-        show_contracted=True,
-        ax=ax
-    )
+    dists = z[:, 2]
+    dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
+    z[:, 2] = dists
+    n = x.shape[0]
+    colors = n * (n - 1) * ['k']
+    vividcolors = ['b', 'g', 'r', 'c', 'm']
+
+    # for clustid in clustids:
+        # colors[clustid]  = vividcolors.pop()
+
+    # print('##########################################################')
+    for clustid in clustids:
+        c = vividcolors.pop()
+        f = get_element_ids(z, n, clustid)
+        # f.append(clustid)
+        # print(type(f))
+        f = np.append(f, clustid)
+        # print((f.shape))
+        for ff in f:
+            # print(ff, c)
+            colors[ff]  = c
+
+    if lthresh:
+        epsilon = 0.000001
+        # dendrogram(
+        # print(linkagemeth, lthresh)
+        fancy_dendrogram(
+            z,
+            color_threshold=lthresh+epsilon,
+            # truncate_mode='level',
+            truncate_mode=None,
+            p=3,
+            leaf_rotation=90.,
+            leaf_font_size=12.,
+            show_contracted=False,
+            show_leaf_counts=True,
+            ax=ax,
+            link_color_func=lambda k: colors[k],
+            annotate_above=100
+        )
     return z
 
 ##########################################################
@@ -128,6 +159,8 @@ def generate_data(samplesz, ndims):
     data.append(generate_multivariate_normal(samplesz, ndims, ncenters=1,
                                              mus=mus, cov=cov))
 
+    # return data # TODO: remove it
+
     # 1 cluster (power)
     mus = np.zeros((1, ndims))
     data.append(generate_power(samplesz, ndims, ncenters=1, power=3, mus=mus))
@@ -215,7 +248,7 @@ def get_clusters_limited_by_dist(dist, z, inclusive=True):
     # get_element_ids(z, nelements, clustid):
 
 ##########################################################
-def compute_relevance(data, linkageret, minclustrelsize=0.2):
+def compute_relevance(data, linkageret, minclustsize):
     """Compute relevance according to Luc's method
 
     Args:
@@ -226,7 +259,9 @@ def compute_relevance(data, linkageret, minclustrelsize=0.2):
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
-    minclustsize = int(n * minclustrelsize)
+    # minclustsize = int(n * minclustrelsize)
+    # minclustsize = 2
+    # print(minclustsize)
     # print(n, minclustrelsize, minclustsize)
     # input()
     minnclusters = 1
@@ -234,6 +269,7 @@ def compute_relevance(data, linkageret, minclustrelsize=0.2):
     
     started = False # Method should execute from 2clusters on
     clustids = set([lastclustid])
+    prevclustid = lastclustid
 
     nlargegroups = 1
     for depth in range(0, n): # Depth of a node of the tree
@@ -259,17 +295,76 @@ def compute_relevance(data, linkageret, minclustrelsize=0.2):
                 clustids.add(int(linkageret[joinid, j]))
                 nlargegroups += 1
 
+        prevclustid = clustid
         clustids.remove(clustid)
         nlargegroups -= 1
         if (len(clustids) == 0): break
 
-    # joinid = clustids.pop() - n
-    joinid = ( n - 2 ) - depth
+    # clustids.add(prevclustid)
+    joinid = ( n - 2 ) - depth + 1 # One above
     l = linkageret[joinid, 2]
     rel = (L-l)/L
-    return rel
+    # print(rel, l, clustids)
+    # input()
+    return rel, l
 
 ##########################################################
+def get_clusters(linkageret, height, minclustsize):
+    """Compute relevance according to Luc's method
+
+    Args:
+    data(np.ndarray): data with columns as dimensions and rows as points
+    linkageret(np.ndarray): return of the scipy.linkage call
+    """
+    nleaves = linkageret.shape[0] + 1
+    dists = linkageret[:, 2]
+    k = np.where(dists == height)[0][-1]
+    clustids = set()
+    childrem = set()
+    # if k == 0: return [nleaves]
+
+    # print(linkageret, minclustsize, k, height)
+    for joinid in range(k, 0, -1):
+        clustid = joinid + nleaves
+        if clustid in childrem: continue
+        left = linkageret[joinid, 0]
+        right = linkageret[joinid, 1]
+        ischild = (left in childrem) or (right in childrem)
+        clustsz = linkageret[joinid, 3]
+        # print(joinid, left, right, ischild, clustsz)
+        # print(minclustsize)
+        if (not ischild) and (clustsz >= minclustsize):
+            clustids.add(joinid + nleaves)
+            childrem.add(left)
+            childrem.add(right)
+
+    return list(clustids)
+
+##########################################################
+def fancy_dendrogram(*args, **kwargs):
+    max_d = kwargs.pop('max_d', None)
+    if max_d and 'color_threshold' not in kwargs:
+        kwargs['color_threshold'] = max_d
+    annotate_above = kwargs.pop('annotate_above', 0)
+
+    ddata = dendrogram(*args, **kwargs)
+    ax = kwargs.pop('ax', 0)
+
+    if not kwargs.get('no_plot', False):
+        for i, d, c in zip(ddata['icoord'], ddata['dcoord'], ddata['color_list']):
+            x = 0.5 * sum(i[1:3])
+            y = d[1]
+            if y > annotate_above:
+                # plt.plot(x, y, 'o', c=c)
+                ax.annotate("%.3g" % y, (x, y), xytext=(0, -5),
+                             textcoords='offset points',
+                             va='top', ha='center')
+        if max_d:
+            plt.axhline(y=max_d, c='k')
+    return ddata
+
+##########################################################
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     args = parser.parse_args()
@@ -286,8 +381,8 @@ def main():
                   # [10, 0], [10, 1], [10, 2]])
     # x3 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10],
                   # [10, 0], [10, 1], [10, 1], [10, 3]])
-    # x4 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10], [0, 15],
-                  # [10, 0], [10, 1], [10, 2], [10, 3]])
+    x4 = np.array([ [0, 0], [0, 3], [0, 7], [0, 10], [0, 15],
+                  [10, 0], [10, 1], [10, 2], [10, 3]])
     # x5 = np.array([[0.54881,0.71519],
           # [0.60276, 0.54488],
           # [0.42365, 0.64589],
@@ -296,14 +391,37 @@ def main():
           # [0.79173, 0.52889]])
 
     # x6 = np.random.rand(10, 2)
-    # x = x6
+    # x = x4
     # print(x)
+    # plt.scatter(x4[:, 0], x4[:, 1])
+    # plt.show()
+    # fig, ax = plt.subplots()
+    # ax.clear()
+    # z = generate_dendrogram(x, 'single', ax)
+    # plt.show()
+    # ax.clear()
+    # print(z)
+    # rel, ll = compute_relevance(x, z, 2)
+    # clustids = get_clusters(z, ll, 2)
+    # print(clustids)
+    # get_element_ids
+    # n = x.shape[0]
+    # for clustid in clustids:
+        # els = get_element_ids(z, n, clustid)
+        # input(els)
+    # z = generate_dendrogram(x, 'single', ax, ll)
+    # plt.show()
+    # return
 
 
     samplesz = 200
+    minrelsize = 0.45
+    minclustsize = int(minrelsize * samplesz)
+    info('samplesize:{}, min:{}'.format(samplesz, minclustsize))
     ndims = 2
     linkagemeths = ['single', 'complete', 'average',
                     'centroid', 'median', 'ward']
+    # linkagemeths = ['complete']
     nlinkagemeths = len(linkagemeths)
 
     data = generate_data(samplesz, ndims)
@@ -330,12 +448,17 @@ def main():
         x = data[i]
         plot_scatter(x, ax[i, 0], ndims)
         for j, l in enumerate(linkagemeths):
-            z = generate_dendrogram(x, l, ax[i, j+1])
-            rel = compute_relevance(x, z)
-            plt.text(0.8, 0.9, 'rel:{:.3f}'.format(rel),
+            z = generate_dendrogram(x, l, None)
+            # print(minclustsize)
+            rel, ll = compute_relevance(x, z, minclustsize)
+            clustids = get_clusters(z, ll, minclustsize)
+            # print(clustids)
+            # ax[i, j+1].clear()
+            z = generate_dendrogram(x, l, ax[i, j+1], ll, clustids)
+            plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
                      horizontalalignment='center',
                      verticalalignment='center',
-                     fontsize=30,
+                     fontsize=50,
                      transform = ax[i, j+1].transAxes)
 
     for ax_, col in zip(ax[0, 1:], linkagemeths):
