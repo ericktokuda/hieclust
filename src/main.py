@@ -13,12 +13,23 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
+import scipy.stats as stats
 
 from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, lthresh, dist, clustids):
-    # z = linkage(x, linkagemeth)
+def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
+    """Call fancy scipy.dendogram with @clustids colored and with a line with height
+    given by @lthresh
+
+    Args:
+    z(np.ndarray): linkage matrix
+    linkagemeth(str): one the allowed linkage methods in the scipy.dendogram arguments
+    ax(plt.Axis): axis to plot
+    lthres(float): complement of the height
+    clustids(list): list of cluster idss
+    """
+
     dists = z[:, 2]
     dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
     z[:, 2] = dists
@@ -140,15 +151,6 @@ def generate_data(samplesz, ndims):
 
     data = []
 
-    # 2 clusters (gaussians)
-    # c = 0.7
-    # mus = np.ones((2, ndims))*c; mus[1, :] *= -1
-    # cov = np.eye(ndims) * 0.1
-    # cov = np.eye(ndims) * 0.01
-    # data.append(generate_multivariate_normal(samplesz, ndims, ncenters=2,
-    # mus=mus, cov=cov))
-    # return data
-
     # 0 cluster
     data.append(generate_uniform(samplesz, ndims))
 
@@ -157,8 +159,6 @@ def generate_data(samplesz, ndims):
     cov = np.eye(ndims) * 0.15
     data.append(generate_multivariate_normal(samplesz, ndims, ncenters=1,
                                              mus=mus, cov=cov))
-
-    # return data # TODO: remove it
 
     # 1 cluster (power)
     mus = np.zeros((1, ndims))
@@ -187,7 +187,7 @@ def get_descendants(z, nleaves, clustid):
     """Get all the descendants from a given cluster id
 
     Args:
-    z(np.ndarray): return from a scipy.linkage call
+    z(np.ndarray): linkage matrix
     nleaves(int): number of leaves
     clustid(int): cluster id
 
@@ -208,6 +208,17 @@ def get_descendants(z, nleaves, clustid):
 
 ##########################################################
 def is_child(parent, child, linkageret):
+    """Check if @child is a direct child of @parent
+
+    Args:
+    parent(int): parent id
+    child(int): child id
+    linkageret(np.ndarray): linkage matrix
+
+    Returns:
+    bool: whether it is child or not
+    """
+
     nleaves = linkageret.shape[0] + 1
     leaves, links = get_descendants(linkageret, nleaves, parent)
     if (child in leaves) or (child in links): return True
@@ -219,7 +230,7 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
 
     Args:
     data(np.ndarray): data with columns as dimensions and rows as points
-    linkageret(np.ndarray): return of the scipy.linkage call
+    linkageret(np.ndarray): linkage matrix
 
     Returns:
     np.ndarray: array of cluster ids
@@ -246,7 +257,7 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
                     newclust = False
                     break
             if newclust: clustids.append(clid)
-    ##########################################################
+
     m = np.max(clustids)
     parent = 2 * n - 1
     for i in range(m + 1, 2 * n - 1):
@@ -260,29 +271,85 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
             break
 
     l = linkageret[parent - n, 2]
-    # rel = (L-l)/L
-    # rel = l / L
     acc = 0
     for cl in clustids:
         acc += linkageret[cl - n, 2]
 
     acc /= len(clustids)
-    # print(acc)
     rel = (L - acc) / L
 
     return clustids, rel, l / L
 
 ##########################################################
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    args = parser.parse_args()
+def generate_relevance_distrib_all():
+    samplesz = 200
+    minnclusters = 2
+    minrelsize = 0.3
+    minclustsize = int(minrelsize * samplesz)
+    ndims = 2
+    nrealizations = 100
 
-    logging.basicConfig(format='[%(asctime)s] %(message)s',
-                        datefmt='%Y%m%d %H:%M', level=logging.DEBUG)
+    info('Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
+         format(samplesz, minnclusters, minclustsize))
 
-    np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(0)
+    # linkagemeths = ['single', 'complete', 'average',
+                    # 'centroid', 'median', 'ward']
+    linkagemeth = 'ward'
+    nlinkagemeths = 1
+    info('Computing:{}'.format(linkagemeth))
 
+    ndistribs = 4
+    # data = generate_data(samplesz, ndims)[:ndistribs]
+
+    nrows = ndistribs
+    # ncols = nlinkagemeths + 1
+    ncols = 2
+    # fig = plt.figure(figsize=(ncols*10, nrows*10))
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*10, nrows*10))
+
+    # ax = np.array([[None]*ncols]*nrows)
+    fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
+                 format(samplesz, minnclusters, minclustsize),
+                 fontsize=60)
+
+    rels = []
+    for i in range(ndistribs):
+        rels.append({'1': [], '2': []})
+
+    for k in range(nrealizations):
+        data = generate_data(samplesz, ndims)[:ndistribs]
+        for i in range(ndistribs):
+            x = data[i]
+            z = linkage(x, linkagemeth)
+            clustids, rel, dist = filter_clustering(x, z, minclustsize, minnclusters)
+            nclusters = len(clustids)
+            rels[i][str(nclusters)].append(rel)
+
+    nbins = 10
+    for i in range(ndistribs):
+        n, xx, _ = ax[i, 0].hist(rels[i]['1'], nbins)
+        ax[i, 1].hist(rels[i]['2'])
+
+        ax[i, 0].set_xlim(0, 1)
+        plt.text(0.7, 0.9, 'count:{}'.format(len(rels[i]['1'])),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize=50, transform = ax[i, 0].transAxes)
+
+        ax[i, 1].set_xlim(0, 1)
+        plt.text(0.7, 0.9, 'count:{}'.format(len(rels[i]['2'])),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize=50, transform = ax[i, 1].transAxes)
+
+    plottitles = [ 'Uniform', '1_Normal_0.1', '1_Exponential',
+                  '1_Power_2', '2_Normal_0.1', '1_Exponential_0.01', ]
+
+    for ax_, row in zip(ax[:, 0], plottitles[:ndistribs]):
+        ax_.set_ylabel(row + '  ', rotation=90, size=36)
+
+    plt.savefig('/tmp/rel_distribs.pdf')
+
+##########################################################
+def generate_dendograms_all():
     # thresh = 0.25 # maximum relative distance between elements in the same cluster
     # x1 = np.array([ [0, 0], [0, 4], [10, 0], [10, 1]])
     # x2 = np.array([ [0, 0], [0, 2], [0, 4], [0, 6],
@@ -332,7 +399,7 @@ def main():
     minnclusters = 2
     minrelsize = 0.3
     minclustsize = int(minrelsize * samplesz)
-    ndims = 3
+    ndims = 2
 
     info('Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
          format(samplesz, minnclusters, minclustsize))
@@ -367,11 +434,12 @@ def main():
     for i in range(ndistribs):
         x = data[i]
         plot_scatter(x, ax[i, 0], ndims)
+
         for j, l in enumerate(linkagemeths):
             z = linkage(x, l)
             clustids, rel, dist = filter_clustering(x, z, minclustsize, minnclusters)
             ll = rel
-            plot_dendrogram(z, l, ax[i, j+1], ll, dist, clustids)
+            plot_dendrogram(z, l, ax[i, j+1], ll, clustids)
             plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
                      horizontalalignment='center', verticalalignment='center',
                      fontsize=50, transform = ax[i, j+1].transAxes)
@@ -387,6 +455,20 @@ def main():
 
     plt.savefig('/tmp/{}d.pdf'.format(ndims))
 
+##########################################################
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    args = parser.parse_args()
+
+    logging.basicConfig(format='[%(asctime)s] %(message)s',
+                        datefmt='%Y%m%d %H:%M', level=logging.DEBUG)
+
+    np.set_printoptions(precision=5, suppress=True)
+    np.random.seed(0)
+    # generate_dendograms_all()
+    generate_relevance_distrib_all()
+
+##########################################################
 if __name__ == "__main__":
     main()
 
