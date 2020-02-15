@@ -332,7 +332,7 @@ def generate_relevance_distrib_all():
     gtruths = compute_gtruth_vectors(data, nrealizations)
     nrows = ndistribs
     ncols = 3
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5))
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*10, nrows*10))
 
     fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
                  format(samplesz, minnclusters, minclustsize),
@@ -364,9 +364,10 @@ def generate_relevance_distrib_all():
         diffnorms[distrib] = np.linalg.norm(diff[distrib])
     
     nbins = 10
+    bins = np.arange(0, 1, 0.05)
     for i, distrib in enumerate(data): # Plot
         for j in range(2): # Plot
-            ax[i, j].hist(rels[distrib][j], nbins)
+            ax[i, j].hist(rels[distrib][j], bins)
             ax[i, j].set_xlim(0, 1)
             plt.text(0.5, 0.9, '{} cluster, n:{}'.\
                      format(j+1, len(rels[distrib][j])),
@@ -377,8 +378,8 @@ def generate_relevance_distrib_all():
         xs = np.array([gtruths[distrib][0], v[distrib][0]])
         ys = np.array([gtruths[distrib][1], v[distrib][1]])
         ax[i, 2].quiver(origin, origin, xs, ys, color=colours, width=.03,
-                        scale=nrealizations, headwidth=1, headlenght=3,
-                        alpha=0.5)
+                        scale=nrealizations, alpha=0.7,
+                        headwidth=2, headlength=2, headaxislength=1.8)
 
         ax[i, 2].set_xlim(0, nrealizations)
         ax[i, 2].set_ylim(0, nrealizations)
