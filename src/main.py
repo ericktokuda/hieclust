@@ -18,6 +18,38 @@ import scipy.stats as stats
 from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
+def fancy_dendrogram(*args, **kwargs):
+    max_d = kwargs.pop('max_d', None)
+    z = args[0]
+    if max_d and 'color_threshold' not in kwargs:
+        kwargs['color_threshold'] = max_d
+    annotate_above = kwargs.pop('annotate_above', 0)
+
+    inc = inconsistent(z)
+    ddata = dendrogram(z, **kwargs)
+
+    if not kwargs.get('no_plot', False):
+        plt.title('Hierarchical Clustering Dendrogram (truncated)')
+        plt.xlabel('sample index or (cluster size)')
+        plt.ylabel('distance')
+
+        # print(*args)
+        # print(inc)
+        j = 0
+        for i, d, c in zip(ddata['icoord'], ddata['dcoord'], ddata['color_list']):
+            x = 0.5 * sum(i[1:3])
+            y = d[1]
+            if y > annotate_above:
+                plt.plot(x, y, 'o', c=c)
+                plt.annotate("{:.3g}".format(inc[j, -1]), (x, y), xytext=(0, -5),
+                             textcoords='offset points',
+                             va='top', ha='center', size=7)
+            j += 1
+
+        if max_d:
+            plt.axhline(y=max_d, c='k')
+    return ddata
+##########################################################
 def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
     given by @lthresh
@@ -155,6 +187,7 @@ def generate_data(samplesz, ndims):
     # 0 cluster
     # data.append(generate_uniform(samplesz, ndims))
     data['1,uniform'] = generate_uniform(samplesz, ndims)
+
 
     # 1 cluster (gaussian)
     mus = np.zeros((1, ndims))
@@ -339,16 +372,25 @@ def generate_relevance_distrib_all():
                  fontsize=60)
 
     rels = dict((el, [[], []]) for el in data.keys())
+    incs = dict((el, [[], []]) for el in data.keys())
 
     for _ in range(nrealizations): # Compute relevances
         data, _ = generate_data(samplesz, ndims)
 
         for i, distrib in enumerate(data):
             z = linkage(data[distrib], linkagemeth)
+            inc = inconsistent(z)
+
             clustids, rel = filter_clustering(data[distrib], z, minclustsize,
                                                     minnclusters)
-            rels[distrib][len(clustids)-1].append(rel)
+            clustids = np.array(clustids)
+            incinds = clustids - samplesz
+            rels[distrib][len(incinds)-1].append(rel)
+            incs_mean = np.mean(inc[incinds, -1])
+            incs[distrib][len(clustids)-1].append(incs_mean)
 
+    # print(incs)
+    # input()
     # Compute the summarized vector
     v = dict((el, np.zeros(2)) for el in data.keys())
     for i, distrib in enumerate(data):
@@ -368,6 +410,7 @@ def generate_relevance_distrib_all():
     for i, distrib in enumerate(data): # Plot
         for j in range(2): # Plot
             ax[i, j].hist(rels[distrib][j], bins)
+            ax[i, j].hist(incs[distrib][j], bins)
             ax[i, j].set_xlim(0, 1)
             plt.text(0.5, 0.9, '{} cluster, n:{}'.\
                      format(j+1, len(rels[distrib][j])),
@@ -395,6 +438,37 @@ def generate_relevance_distrib_all():
         ax[i, 0].set_ylabel('{}'.format(distrib), rotation=90, size=36)
 
     plt.savefig('/tmp/rel_distribs.pdf')
+
+##########################################################
+def test_inconsistency():
+    data = {}
+    data['A'] = np.array([[x] for x in [10, 20, 100, 200, 400, 1000]])
+    data['B'] = np.array([[x] for x in [10, 20, 100, 200, 500, 1000]])
+
+    for i, distrib in enumerate(data):
+        z = linkage(data[distrib], 'single')
+
+        print(distrib)
+        print(z)
+        print(inconsistent(z))
+
+        fancy_dendrogram(
+        # dendrogram(
+            z,
+            color_threshold=0,
+            truncate_mode=None,
+            leaf_rotation=90.,
+            leaf_font_size=7.,
+            show_contracted=False,
+            show_leaf_counts=True,
+        )
+        plt.text(0.5, 0.9, '{}'.\
+                 format(distrib),
+                 ha='center', va='center',
+                 fontsize=20)
+        plt.ylim(0, 700)
+        plt.savefig('/tmp/' + distrib + '.png', dpi=180)
+        plt.clf()
 
 ##########################################################
 def generate_dendograms_all():
@@ -465,7 +539,8 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
     # generate_dendograms_all()
-    generate_relevance_distrib_all()
+    # generate_relevance_distrib_all()
+    test_inconsistency()
 
 ##########################################################
 if __name__ == "__main__":
