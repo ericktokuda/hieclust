@@ -215,6 +215,13 @@ def generate_data(samplesz, ndims):
                                                               mus=mus,cov=cov)
 
     # 2 clusters (gaussians)
+    cov = np.eye(ndims) *0.5 
+    data['2,gaussian,std0.5'] = generate_multivariate_normal(samplesz, ndims,
+                                                               ncenters=2,
+                                                               mus=mus,cov=cov)
+
+
+    # 2 clusters (gaussians)
     cov = np.eye(ndims) * 0.01
     data['2,gaussian,std0.01'] = generate_multivariate_normal(samplesz, ndims,
                                                                ncenters=2,
@@ -352,90 +359,130 @@ def generate_relevance_distrib_all():
     minrelsize = 0.3
     minclustsize = int(minrelsize * samplesz)
     ndims = 10
-    nrealizations = 100
+    nrealizations = 10
 
     info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
          format(nrealizations, samplesz, minnclusters, minclustsize))
 
-    linkagemeth = 'single' # 'complete', 'average', 'centroid', 'median', 'ward'
+    linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     nlinkagemeths = 1
-    info('Computing:{}'.format(linkagemeth))
+    info('Computing:{}'.format(linkagemeths))
 
     data, ndistribs = generate_data(samplesz, ndims)
     gtruths = compute_gtruth_vectors(data, nrealizations)
     nrows = ndistribs
-    ncols = 3
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*10, nrows*10))
+    ncols = 2
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5),
+                           squeeze=False)
 
+    # plt.tight_layout(pad=5)
     fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
                  format(samplesz, minnclusters, minclustsize),
-                 fontsize=60)
+                 fontsize='x-large', y=0.9)
 
-    rels = dict((el, [[], []]) for el in data.keys())
-    incs = dict((el, [[], []]) for el in data.keys())
+    # Scatter plot
+    for i, distrib in enumerate(data):
+        d = data[distrib]
+        ax[i, 0].scatter(d[:, 0], d[:, 1])
+
+    rels = {}
+    for k in data.keys():
+        rels[k] = {l: [[], []] for l in linkagemeths}
 
     for _ in range(nrealizations): # Compute relevances
         data, _ = generate_data(samplesz, ndims)
 
-        for i, distrib in enumerate(data):
-            z = linkage(data[distrib], linkagemeth)
-            inc = inconsistent(z)
+        for j, linkagemeth in enumerate(linkagemeths):
 
-            clustids, rel = filter_clustering(data[distrib], z, minclustsize,
-                                                    minnclusters)
-            clustids = np.array(clustids)
-            incinds = clustids - samplesz
-            rels[distrib][len(incinds)-1].append(rel)
-            incs_mean = np.mean(inc[incinds, -1])
-            incs[distrib][len(clustids)-1].append(incs_mean)
+            for i, distrib in enumerate(data):
+                z = linkage(data[distrib], linkagemeth)
+                inc = inconsistent(z)
 
-    # print(incs)
-    # input()
-    # Compute the summarized vector
-    v = dict((el, np.zeros(2)) for el in data.keys())
+                clustids, rel = filter_clustering(data[distrib], z, minclustsize,
+                                                        minnclusters)
+                clustids = np.array(clustids)
+                incinds = clustids - samplesz
+                rels[distrib][linkagemeth][len(incinds)-1].append(rel)
+
+    v = {}
+    for k in data.keys():
+        v[k] = {}
+
+    # v = dict((el, np.zeros(2)) for el in data.keys())
     for i, distrib in enumerate(data):
-        for j, rel in enumerate(rels[distrib]):
-            v[distrib][j] = np.sum(rel)
+        for linkagemeth in linkagemeths:
+            v[distrib][linkagemeth] = np.zeros(2)
+            for j, rel in enumerate(rels[distrib][linkagemeth]):
+                v[distrib][linkagemeth][j] = np.sum(rel)
 
     # Compute the difference vector
-    diff = dict((el, np.zeros(2)) for el in data.keys())
+    diff = {}
     diffnorms = {}
+    for k in data.keys():
+        diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
+        diffnorms[k] = {}
+
+    # diff = dict((el, np.zeros(2)) for el in data.keys())
     for i, distrib in enumerate(data):
-        # print((gtruths[distrib]), (v[distrib]))
-        diff[distrib] = gtruths[distrib] - v[distrib]
-        diffnorms[distrib] = np.linalg.norm(diff[distrib])
+        for j, linkagemeth in enumerate(linkagemeths):
+            # print((gtruths[distrib]), (v[distrib]))
+            diff[distrib][linkagemeth] = gtruths[distrib] - v[distrib][linkagemeth]
+            diffnorms[distrib][linkagemeth] = np.linalg.norm(diff[distrib][linkagemeth])
     
+    winner = {}
+    for d in data.keys():
+        minvalue = 1000
+        for l in linkagemeths:
+            if diffnorms[d][l] < minvalue:
+                winner[d] = l
+                minvalue = diffnorms[d][l]
+
+    palette = np.array([
+    [215,48,39, 150],
+    [244,109,67, 150],
+    [253,174,97, 150],
+    [254,224,139, 150],
+    [217,239,139, 150],
+    [166,217,106, 150],
+    [102,189,99, 150],
+    [26,152,80, 150],
+           ])
+    palette = palette/255
+
     nbins = 10
     bins = np.arange(0, 1, 0.05)
+    origin = np.zeros(2)
     for i, distrib in enumerate(data): # Plot
-        for j in range(2): # Plot
-            ax[i, j].hist(rels[distrib][j], bins)
-            ax[i, j].hist(incs[distrib][j], bins)
-            ax[i, j].set_xlim(0, 1)
-            plt.text(0.5, 0.9, '{} cluster, n:{}'.\
-                     format(j+1, len(rels[distrib][j])),
-                     ha='center', va='center',
-                     fontsize=40, transform = ax[i, j].transAxes)
-        origin = np.zeros(2)
-        colours = ['r', 'g', 'b']
-        xs = np.array([gtruths[distrib][0], v[distrib][0]])
-        ys = np.array([gtruths[distrib][1], v[distrib][1]])
-        ax[i, 2].quiver(origin, origin, xs, ys, color=colours, width=.03,
-                        scale=nrealizations, alpha=0.7,
-                        headwidth=2, headlength=2, headaxislength=1.8)
+            # ys = np.array([gtruths[distrib][1], v[distrib][linkagemeth][1]])
+        xs = np.array([gtruths[distrib][0]])
+        ys = np.array([gtruths[distrib][1]])
 
-        ax[i, 2].set_xlim(0, nrealizations)
-        ax[i, 2].set_ylim(0, nrealizations)
+        ax[i, 1].quiver(origin, origin, xs, ys, color=palette[0], width=.01,
+                        scale=nrealizations, label='Gtruth',
+                        headwidth=5, headlength=4, headaxislength=3.5)
+        for j, linkagemeth in enumerate(linkagemeths):
+            xs = np.array([v[distrib][linkagemeth][0]])
+            ys = np.array([v[distrib][linkagemeth][1]])
 
-        plt.text(0.5, 0.9, 'moddiff:{:.2f}'.format(diffnorms[distrib]),
+            ax[i, 1].quiver(origin, origin, xs, ys, color=palette[j+1], width=.01,
+                            angles='xy', scale_units='xy', scale=1,
+                            # scale=nrealizations, label=linkagemeth,
+                            label=linkagemeth,
+                            headwidth=5, headlength=4, headaxislength=3.5)
+
+            ax[i, 1].set_xlim(0, nrealizations)
+            ax[i, 1].set_ylim(0, nrealizations)
+
+        plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
                  horizontalalignment='center', verticalalignment='center',
-                 fontsize=40, transform = ax[i, 2].transAxes)
+                 fontsize='large', transform = ax[i, 1].transAxes)
 
-        ax[i, 2].set_ylabel('2 clusters', fontsize='xx-large')
-        ax[i, 2].set_xlabel('1 cluster', fontsize='xx-large')
+        ax[i, 1].set_ylabel('2 clusters', fontsize='medium')
+        ax[i, 1].set_xlabel('1 cluster', fontsize='medium')
+        ax[i, 1].legend()
 
     for i, distrib in enumerate(data): # Plot
-        ax[i, 0].set_ylabel('{}'.format(distrib), rotation=90, size=36)
+        ax[i, 1].set_title('{}'.format(distrib), size='x-large')
 
     plt.savefig('/tmp/rel_distribs.pdf')
 
@@ -539,8 +586,8 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
     # generate_dendograms_all()
-    # generate_relevance_distrib_all()
-    test_inconsistency()
+    generate_relevance_distrib_all()
+    # test_inconsistency()
 
 ##########################################################
 if __name__ == "__main__":
