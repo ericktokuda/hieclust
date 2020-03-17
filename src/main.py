@@ -14,8 +14,25 @@ from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 import scipy.stats as stats
+from scipy.spatial.distance import cdist
+from matplotlib.patches import Circle
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
+
+##########################################################
+def multivariate_normal(x, mean, cov):
+    """P.d.f. of the multivariate normal when the covariance matrix is positive definite.
+    Source: wikipedia"""
+    ndims = len(mean)
+    B = x - mean
+    # print(cov, B)
+    # print(np.linalg.solve(cov, B))
+    # print(np.sqrt((2 * np.pi)**ndims * np.linalg.det(cov)))
+    # print(np.exp(-0.5*(np.linalg.solve(cov, B).T.dot(B))))
+    return (1. / (np.sqrt((2 * np.pi)**ndims * np.linalg.det(cov))) *
+            np.exp(-0.5*(np.linalg.solve(cov, B).T.dot(B))))
 
 ##########################################################
 def fancy_dendrogram(*args, **kwargs):
@@ -94,25 +111,61 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
     return colors[:n]
 
 ##########################################################
-def generate_uniform(samplesz, ndims):
-    return np.random.rand(samplesz, ndims)
+# def generate_uniform(samplesz, ndims):
+    # xlist = np.linspace(0, 1, samplesz)
+    # ylist = np.linspace(0, 1, samplesz)
+    # # pdf = np.ones((samplesz, samplesz, 3))
+    # # pdf[:,:,0], pdf[:,:,1] = np.meshgrid(xlist, ylist)
+    # # pdf[:, :2] = np.meshgrid(xlist, ylist)
+    # return np.random.rand(samplesz, ndims), pdf
 
 ##########################################################
-def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], cov=[]):
-    x = np.ndarray((samplesz, ndims), dtype=float)
+def generate_uniform(samplesz, ndims, cs, rs):
+    nrows = samplesz
+    data = np.zeros((nrows, ndims))
+    pdf = np.zeros((nrows, ndims, 3))
+    partsz = get_partition_sizes(samplesz, rs.shape[0])
 
-    truncsz = samplesz // ncenters
-    partsz = [truncsz] * ncenters
-    diff = samplesz - (truncsz*ncenters)
+    dataind = 0
+    for i in range(len(rs)):
+        c = cs[i, :]
+        r = rs[i]
+        min_ = c - r
+        range_ = 2 * r
+        aux = np.random.rand(2*partsz[i], ndims) * range_ + min_
+        dists = cdist(aux, np.array([c]))
+        inds = np.where(dists <= r)[0][:partsz[i]]
+        data[dataind:dataind+partsz[i]] = aux[inds, :]
+        dataind += partsz[i]
+
+    return data
+
+##########################################################
+def get_partition_sizes(samplesz, npartitions):
+    truncsz = samplesz // npartitions
+    partsz = [truncsz] * npartitions
+    diff = samplesz - (truncsz*npartitions)
     partsz[-1] += diff
+    return np.array(partsz)
+
+##########################################################
+def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], covs=[]):
+    x = np.ndarray((samplesz, ndims), dtype=float)
+    partsz = get_partition_sizes(samplesz, ncenters)
 
     if len(mus) == 0:
         mus = np.random.rand(ncenters, ndims)
-        cov = np.eye(ndims)
+        covs = np.array([np.eye(ndims)] * ncenters)
 
+    # print(mus.shape)
+    # print(covs.shape)
+    # input()
     ind = 0
     for i in range(ncenters):
-        mu = mus[i]
+        mu = mus[i, :]
+        cov = covs[i, :, :]
+        # print(mus, mu)
+        # print(cov)
         x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov, size=partsz[i])
         ind += partsz[i]
     return x
@@ -121,10 +174,7 @@ def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], cov=[]):
 def generate_exponential(samplesz, ndims, ncenters, mus=[]):
     x = np.ndarray((samplesz, ndims), dtype=float)
 
-    truncsz = samplesz // ncenters
-    partsz = [truncsz] * ncenters
-    diff = samplesz - (truncsz*ncenters)
-    partsz[-1] += diff
+    partsz = get_partition_sizes(samplesz, ncenters)
 
     if len(mus) == 0:
         mus = np.random.rand(ncenters, ndims)
@@ -140,25 +190,26 @@ def generate_exponential(samplesz, ndims, ncenters, mus=[]):
     return x
 
 ##########################################################
-def generate_power(samplesz, ndims, ncenters, power, mus=[]):
+def generate_power(samplesz, ndims, power, mus=[]):
     x = np.ndarray((samplesz, ndims), dtype=float)
 
-    truncsz = samplesz // ncenters
-    partsz = [truncsz] * ncenters
-    diff = samplesz - (truncsz*ncenters)
-    partsz[-1] += diff
-
+    ncenters = len(mus)
     if len(mus) == 0:
-        mus = np.random.rand(ncenters, 2)
+        mus = np.random.rand(1, 2)
         cov = np.eye(2)
+        ncenters = 1
+
+    partsz = get_partition_sizes(samplesz, ncenters)
 
     ind = 0
     for i in range(ncenters):
         mu = mus[i]
-        xs = 1 - np.random.power(a=power+1, size=partsz[i])
-        ys = 1 - np.random.power(a=power+1, size=partsz[i])
-        x[ind:ind+partsz[i], 0] = xs
-        x[ind:ind+partsz[i], 1] = ys
+        xs = 1 - np.random.power(a=power+1, size=partsz[i]*2)
+        ys = 1 - np.random.power(a=power+1, size=partsz[i]*2)
+        xs[np.random.rand(partsz[i]*2) > .5] *= -1
+        ys[np.random.rand(partsz[i]*2) > .5] *= -1
+        x[ind:ind+partsz[i], 0] = xs[:partsz[i]] + mu[0]
+        x[ind:ind+partsz[i], 1] = ys[:partsz[i]] + mu[1]
         ind += partsz[i]
     return x
 
@@ -182,47 +233,54 @@ def generate_data(samplesz, ndims):
 
     data = {}
 
-    # 0 cluster
-    # data.append(generate_uniform(samplesz, ndims))
-    data['1,uniform'] = generate_uniform(samplesz, ndims)
+    # fig, ax = plt.subplots(2)
+    # mus = np.zeros((1, ndims))
+    # ax[0] = plot_contour_power(samplesz, ndims, 1, mus, ax[0])
+    # ax[1] = plot_contour_power(samplesz, ndims, 5, mus, ax[1])
+    # plt.show()
 
-
+    mu = np.array([[0, 0]])
+    r = np.array([.9])
+    data['1,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mu, r)
+ 
     # 1 cluster (gaussian)
     mus = np.zeros((1, ndims))
-    cov = np.eye(ndims) * 0.15
+    covs = np.array([np.eye(ndims) * 0.15])
     data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
-                                             mus=mus, cov=cov)
+                                                      mus=mus, covs=covs)
     # 1 cluster (linear)
     mus = np.zeros((1, ndims))
-    data['1,linear'] = generate_power(samplesz, ndims, ncenters=1, power=1, mus=mus)
+    data['1,linear'] = generate_power(samplesz, ndims, power=1, mus=mus)
 
     # 1 cluster (power)
     mus = np.zeros((1, ndims))
-    data['1,power'] = generate_power(samplesz, ndims, ncenters=1, power=2, mus=mus)
+    data['1,power'] = generate_power(samplesz, ndims, power=2, mus=mus)
 
     # 1 cluster (exponential)
     mus = np.zeros((1, ndims))
     data['1,exponential'] = generate_exponential(samplesz, ndims, ncenters=1, mus=mus)
 
+    # 2 clusters (uniform)
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
+    rs = np.ones(2) * .9
+    data['2,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mus, rs)
+
+    # 2 clusters (uniform)
+    rs = np.ones(2) * .5
+    data['2,uniform,rad0.5'] = generate_uniform(samplesz, ndims, mus, rs)
+
 
     # 2 clusters (gaussians)
-    cov = np.eye(ndims) *0.2
+    covs = np.array([np.eye(ndims) * 0.2] * 2)
     data['2,gaussian,std0.2'] = generate_multivariate_normal(samplesz, ndims,
-                                                               ncenters=2,
-                                                               mus=mus, cov=cov)
-
+                                                             ncenters=2,
+                                                             mus=mus, covs=covs)
     # 2 clusters (gaussians)
-    cov = np.eye(ndims) * 0.1
-    data['2,gaussian,std0.1'] = generate_multivariate_normal(samplesz, ndims,
-                                                              ncenters=2,
-                                                              mus=mus,cov=cov)
-    # 2 clusters (gaussians)
-    cov = np.eye(ndims) * 0.01
-    data['2,gaussian,std0.01'] = generate_multivariate_normal(samplesz, ndims,
-                                                               ncenters=2,
-                                                               mus=mus,cov=cov)
+    covs = np.array([np.eye(ndims) * 0.1] * 2)
+    data['2,gaussian,std0.2'] = generate_multivariate_normal(samplesz, ndims,
+                                                             ncenters=2,
+                                                             mus=mus, covs=covs)
 
     # 2 clusters (gaussians elliptical)
     c = .2
@@ -230,10 +288,118 @@ def generate_data(samplesz, ndims):
     cov = np.eye(ndims)
     cov[0, 0] = .006
     cov[1, 1] = 1.4
+    covs = np.array([cov]*2)
     data['2,gaussian,elliptical'] = generate_multivariate_normal(samplesz, ndims,
                                                                ncenters=2,
-                                                               mus=mus,cov=cov)
-    return data, len(data.keys())
+                                                               mus=mus,covs=covs)
+    return data
+
+##########################################################
+def plot_contour_uniform(samplesz, ndims, cs, rs, ax):
+    xs = cs[:, 0]
+    ys = cs[:, 1]
+
+    xmin = +9999
+    xmax = -9999
+    ymin = +9999
+    ymax = -9999
+
+    for i in range(cs.shape[0]):
+        r = rs[i]
+        if cs[i, 0] - r < xmin: xmin = cs[i, 0] - r
+        if cs[i, 0] + r > xmax: xmax = cs[i, 0] + r
+
+        if cs[i, 1] - r < ymin: ymin = cs[i, 1] - r
+        if cs[i, 1] + r > ymax: ymax = cs[i, 1] + r
+
+    xs = np.linspace(xmin, xmax, 500)
+    ys = np.linspace(ymin, ymax, 500)
+
+    X, Y = np.meshgrid(xs, ys)
+
+    Z = np.zeros(X.shape)
+
+    for i, c in enumerate(cs):
+        x0, y0 = c
+        r2 = rs[i]**2
+        aux = (X-x0)**2 + (Y-y0)**2
+        Z[aux <= r2] = 1
+
+    contours = ax.contour(X, Y, Z)
+    return ax
+
+##########################################################
+def plot_contour_power(samplesz, ndims, power, mus, ax):
+    s = 500
+
+    xmin = +9999
+    xmax = -9999
+    ymin = +9999
+    ymax = -9999
+
+    for i in range(mus.shape[0]):
+        r = 1
+        if mus[i, 0] - r < xmin: xmin = mus[i, 0] - r
+        if mus[i, 0] + r > xmax: xmax = mus[i, 0] + r
+
+        if mus[i, 1] - r < ymin: ymin = mus[i, 1] - r
+        if mus[i, 1] + r > ymax: ymax = mus[i, 1] + r
+
+    xs = np.linspace(xmin, xmax, s)
+    ys = np.linspace(ymin, ymax, s)
+
+    X, Y = np.meshgrid(xs, ys)
+    Z = np.zeros(X.shape)
+    coords = np.zeros((s*s, 2), dtype=float)
+
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
+    Z = np.zeros(X.shape)
+
+    dists = np.zeros(coords.shape[0])
+    for i in range(mus.shape[0]):
+        mu = mus[0, :]
+        dists += cdist(coords, np.array([mu])).flatten()
+
+    Z = np.reshape(dists, X.shape)
+    Z = 100 - Z**power
+    Z[Z<0] = 0
+    contours = ax.contour(X, Y, Z)
+    return ax
+
+##########################################################
+def plot_contour_gaussian(samplesz, ndims, mus, covs, ax):
+    s = 500
+    xs = mus[:, 0]
+    ys = mus[:, 1]
+
+    xmin = np.min(mus[:, 0]) - 5
+    xmax = np.max(mus[:, 0]) + 5
+    ymin = np.min(mus[:, 1]) - 5
+    ymax = np.max(mus[:, 1]) + 5
+
+    # def f(mus, cov)
+
+    xs = np.linspace(xmin, xmax, s)
+    ys = np.linspace(ymin, ymax, s)
+
+    X, Y = np.meshgrid(xs, ys)
+    coords = np.zeros((s*s, 2), dtype=float)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
+    Z = np.zeros(X.shape)
+
+    for cind in range(coords.shape[0]):
+        i = cind // s
+        j = cind % s
+        for mind in range(mus.shape[0]):
+            Z[i, j] += multivariate_normal(coords[cind, :], mus[mind, :],
+                                           covs[mind, :, :])
+
+    contours = ax.contour(X, Y, Z)
+    return ax
 
 ##########################################################
 def get_descendants(z, nleaves, clustid):
@@ -359,7 +525,7 @@ def compute_gtruth_vectors(data, nrealizations):
     return gtruths
 
 ##########################################################
-def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations):
+def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
     minnclusters = 2
     minrelsize = 0.3
     nrows = len(data.keys())
@@ -386,12 +552,31 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations)
         d = data[distrib]
         ax[i, 0].scatter(d[:, 0], d[:, 1])
 
+        # fig = plt.figure(figsize=(8,8))
+
+        # ax = fig.gca()
+        # xx = d[:, 0]
+        # yy = d[:, 1]
+        # xmin = np.min(d[:, 0])
+        # xmax = np.max(d[:, 0])
+        # ymin = np.min(d[:, 1])
+        # ymax = np.max(d[:, 1])
+        # ax[i, 0].set_xlim(xmin, xmax)
+        # ax[i, 0].set_ylim(ymin, ymax)
+        # cfset = ax[i, 0].contourf(xx, yy, f, cmap='coolwarm')
+        # ax[i, 0].imshow(np.rot90(f), cmap='coolwarm', extent=[xmin, xmax, ymin, ymax])
+        # cset = ax[i, 0].contour(xx, yy, f, colors='k')
+        # ax[i, 0].clabel(cset, inline=1, fontsize=10)
+        # ax[i, 0].set_xlabel('X')
+        # ax[i, 0].set_ylabel('Y')
+        # plt.title('2D Gaussian Kernel density estimation')
+
     rels = {}
     for k in data.keys():
         rels[k] = {l: [[], []] for l in linkagemeths}
 
     for _ in range(nrealizations): # Compute relevances
-        data, _ = generate_data(samplesz, ndims)
+        data = generate_data(samplesz, ndims)
 
         for j, linkagemeth in enumerate(linkagemeths):
             if linkagemeth == 'centroid' or linkagemeth == 'median' or linkagemeth == 'ward':
@@ -499,7 +684,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations)
     for i, distrib in enumerate(data): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
 
-    plt.savefig('/tmp/vectors.pdf')
+    plt.savefig(pjoin(outdir, '{}d_{}_vectors.pdf'.format(ndims, samplesz)))
 
 ##########################################################
 def test_inconsistency():
@@ -533,7 +718,7 @@ def test_inconsistency():
         plt.clf()
 
 ##########################################################
-def generate_dendrograms_all(data, metricarg, linkagemeths):
+def generate_dendrograms_all(data, metricarg, linkagemeths, outdir):
     minnclusters = 2
     minrelsize = 0.3
     samplesz = data[list(data.keys())[0]].shape[0]
@@ -584,7 +769,8 @@ def generate_dendrograms_all(data, metricarg, linkagemeths):
     for i, k in enumerate(data):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-    plt.savefig('/tmp/{}d.pdf'.format(ndims))
+    plt.tight_layout()
+    plt.savefig(pjoin(outdir, '{}d_{}_dendrograms.pdf'.format(ndims, samplesz)))
 
 ##########################################################
 def generate_dendrogram_single(data, metric):
@@ -618,10 +804,10 @@ def generate_dendrogram_single(data, metric):
         info(k)
         nclusters = int(k.split(',')[0])
 
-        z = linkage(data[k], 'single', metric)
+        z = linkage(data[k], 'ward', metric)
         clustids, rel = filter_clustering(data[k], z, minclustsize,
                                                 minnclusters)
-        colours = plot_dendrogram(z, 'single', ax[i, 1], rel, clustids)
+        colours = plot_dendrogram(z, 'ward', ax[i, 1], rel, clustids)
         plot_scatter(data[k], ax[i, 0], ndims, colours)
 
         plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
@@ -644,6 +830,10 @@ def generate_dendrogram_single(data, metric):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--ndims', type=int, default=2,
+                        help='Dimensionality of the space')
+    parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
+    parser.add_argument('--outdir', default='/tmp/', help='Output directory')
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
@@ -653,17 +843,15 @@ def main():
     np.random.seed(0)
 
     ##########################################################
-    samplesz = 1000
-    ndims = 2
-    nrealizations = 10
+    nrealizations = 3
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     info('Computing:{}'.format(linkagemeths))
-    data, _ = generate_data(samplesz, ndims)
-    generate_dendrograms_all(data, metric, linkagemeths)
-    generate_dendrogram_single(data, metric)
-    generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations)
+    data = generate_data(args.samplesz, args.ndims)
+    # generate_dendrograms_all(data, metric, linkagemeths, args.outdir)
+    # generate_dendrogram_single(data, metric)
+    generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations, args.outdir)
     # test_inconsistency()
 
 ##########################################################
