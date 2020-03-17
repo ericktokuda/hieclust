@@ -256,7 +256,7 @@ def generate_data(samplesz, ndims):
 
     # 1 cluster (power)
     mus = np.zeros((1, ndims))
-    data['1,power'] = generate_power(samplesz, ndims, power=2, mus=mus)
+    data['1,quadratic'] = generate_power(samplesz, ndims, power=2, mus=mus)
 
     # 1 cluster (exponential)
     mus = np.zeros((1, ndims))
@@ -310,7 +310,7 @@ def mesh_xy(min, max, s):
     return X, Y, Z
 
 ##########################################################
-def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax):
+def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
 
     for i, c in enumerate(mus):
@@ -319,15 +319,15 @@ def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax):
         aux = (X-x0)**2 + (Y-y0)**2
         Z[aux <= r2] = 1
 
-    contours = ax.contour(X, Y, Z, levels=1)
+    contours = ax.contour(X, Y, Z, levels=1, cmap=cmap)
     return ax
 
 ##########################################################
-def plot_contour_power(samplesz, ndims, power, mus, s, ax):
+def plot_contour_power(samplesz, ndims, power, mus, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
-    epsilon = 10
+    epsilon = 0.4
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
@@ -340,15 +340,15 @@ def plot_contour_power(samplesz, ndims, power, mus, s, ax):
         Zflat += (1 / (d+epsilon)) ** power
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, levels=3)
+    contours = ax.contour(X, Y, Z, cmap=cmap)
     return ax
 
 ##########################################################
-def plot_contour_exponential(samplesz, ndims, mus, s, ax):
+def plot_contour_exponential(samplesz, ndims, mus, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
-    epsilon = 10
+    epsilon = 0.4
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
@@ -361,10 +361,10 @@ def plot_contour_exponential(samplesz, ndims, mus, s, ax):
         Zflat += np.exp(1 / (d+epsilon))
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, levels=3)
+    contours = ax.contour(X, Y, Z, cmap=cmap)
     return ax
 ##########################################################
-def plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax):
+def plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     for i in range(X.shape[0]):
@@ -378,7 +378,7 @@ def plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax):
             Z[i, j] += multivariate_normal(coords[cind, :], mus[mind, :],
                                            covs[mind, :, :])
 
-    contours = ax.contour(X, Y, Z, levels=3)
+    contours = ax.contour(X, Y, Z, cmap=cmap)
     return ax
 
 ##########################################################
@@ -507,6 +507,7 @@ def compute_gtruth_vectors(data, nrealizations):
 ##########################################################
 def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
     s = 500
+    cmap = 'Blues'
     minnclusters = 2
     minrelsize = 0.3
     nrows = len(data.keys())
@@ -532,41 +533,41 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     i = 0
     mu = np.array([[0, 0]])
     r = np.array([.9])
-    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[i, 0])
+    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[i, 0], cmap) # 1 uniform
     i += 1
  
     mus = np.zeros((1, ndims))
 
-    plot_contour_power(samplesz, ndims, 1, mus, s, ax[i, 0]) # 1 linear
+    plot_contour_power(samplesz, ndims, 1, mus, s, ax[i, 0], cmap) # 1 linear
     i += 1
 
-    plot_contour_power(samplesz, ndims, 2, mus, s, ax[i, 0]) # 1 power
+    plot_contour_power(samplesz, ndims, 2, mus, s, ax[i, 0], cmap) # 1 power
     i += 1
 
     mus = np.zeros((1, ndims))
-    plot_contour_exponential(samplesz, ndims, mus, s, ax[i, 0]) # 1 exponential
+    plot_contour_exponential(samplesz, ndims, mus, s, ax[i, 0], cmap) # 1 exponential
     i += 1
 
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0])
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap)
     i += 1
 
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
     rs = np.ones(2) * .9
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0]) # 2 uniform
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0], cmap) # 2 uniform
     i += 1
 
     rs = np.ones(2) * .5
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0]) # 2 uniform
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0], cmap) # 2 uniform
     i += 1
 
     covs = np.array([np.eye(ndims) * 0.2] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 gaussians
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians
     i += 1
 
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 gaussians
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians
     i += 1
 
     c = .2
@@ -575,7 +576,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     cov[0, 0] = .006
     cov[1, 1] = 1.4
     covs = np.array([cov]*2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 clusters (gaussians elliptical)
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians ellip
     i += 1
 
     rels = {}
@@ -680,9 +681,9 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
             ax[i, 1].set_xlim(0, nrealizations)
             ax[i, 1].set_ylim(0, nrealizations)
 
-        plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
-                 horizontalalignment='center', verticalalignment='center',
-                 fontsize='large', transform = ax[i, 1].transAxes)
+        # plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
+                 # horizontalalignment='center', verticalalignment='center',
+                 # fontsize='large', transform = ax[i, 1].transAxes)
 
         ax[i, 1].set_ylabel('2 clusters', fontsize='medium')
         ax[i, 1].set_xlabel('1 cluster', fontsize='medium')
