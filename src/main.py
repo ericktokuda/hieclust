@@ -171,22 +171,28 @@ def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], covs=[]):
     return x
 
 ##########################################################
-def generate_exponential(samplesz, ndims, ncenters, mus=[]):
+def generate_exponential(samplesz, ndims, mus=[]):
     x = np.ndarray((samplesz, ndims), dtype=float)
 
-    partsz = get_partition_sizes(samplesz, ncenters)
-
+    ncenters = len(mus)
     if len(mus) == 0:
-        mus = np.random.rand(ncenters, ndims)
-        cov = np.eye(ndims)
+        mus = np.random.rand(1, 2)
+        cov = np.eye(2)
+        ncenters = 1
+
+    partsz = get_partition_sizes(samplesz, ncenters)
 
     ind = 0
     for i in range(ncenters):
         mu = mus[i]
-        for j in range(ndims):
-            x[ind:ind+partsz[i], j] = np.random.exponential(size=partsz[i])
-        ind += partsz[i]
-
+        sz = partsz[i]
+        xs = np.random.exponential(size=sz)
+        ys = np.random.exponential(size=sz)
+        xs[np.random.rand(sz) > .5] *= -1
+        ys[np.random.rand(sz) > .5] *= -1
+        x[ind:ind+sz, 0] = xs[:sz] + mu[0]
+        x[ind:ind+sz, 1] = ys[:sz] + mu[1]
+        ind += sz
     return x
 
 ##########################################################
@@ -204,13 +210,14 @@ def generate_power(samplesz, ndims, power, mus=[]):
     ind = 0
     for i in range(ncenters):
         mu = mus[i]
-        xs = 1 - np.random.power(a=power+1, size=partsz[i]*2)
-        ys = 1 - np.random.power(a=power+1, size=partsz[i]*2)
-        xs[np.random.rand(partsz[i]*2) > .5] *= -1
-        ys[np.random.rand(partsz[i]*2) > .5] *= -1
-        x[ind:ind+partsz[i], 0] = xs[:partsz[i]] + mu[0]
-        x[ind:ind+partsz[i], 1] = ys[:partsz[i]] + mu[1]
-        ind += partsz[i]
+        sz = partsz[i]
+        xs = 1 - np.random.power(a=power+1, size=sz)
+        ys = 1 - np.random.power(a=power+1, size=sz)
+        xs[np.random.rand(sz) > .5] *= -1
+        ys[np.random.rand(sz) > .5] *= -1
+        x[ind:ind+sz, 0] = xs[:sz] + mu[0]
+        x[ind:ind+sz, 1] = ys[:sz] + mu[1]
+        ind += sz
     return x
 
 ##########################################################
@@ -243,11 +250,6 @@ def generate_data(samplesz, ndims):
     r = np.array([.9])
     data['1,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mu, r)
  
-    # 1 cluster (gaussian)
-    mus = np.zeros((1, ndims))
-    covs = np.array([np.eye(ndims) * 0.15])
-    data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
-                                                      mus=mus, covs=covs)
     # 1 cluster (linear)
     mus = np.zeros((1, ndims))
     data['1,linear'] = generate_power(samplesz, ndims, power=1, mus=mus)
@@ -258,8 +260,13 @@ def generate_data(samplesz, ndims):
 
     # 1 cluster (exponential)
     mus = np.zeros((1, ndims))
-    data['1,exponential'] = generate_exponential(samplesz, ndims, ncenters=1, mus=mus)
+    data['1,exponential'] = generate_exponential(samplesz, ndims, mus=mus)
 
+    # 1 cluster (gaussian)
+    mus = np.zeros((1, ndims))
+    covs = np.array([np.eye(ndims) * 0.15])
+    data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
+                                                      mus=mus, covs=covs)
     # 2 clusters (uniform)
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
@@ -278,7 +285,7 @@ def generate_data(samplesz, ndims):
                                                              mus=mus, covs=covs)
     # 2 clusters (gaussians)
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    data['2,gaussian,std0.2'] = generate_multivariate_normal(samplesz, ndims,
+    data['2,gaussian,std0.1'] = generate_multivariate_normal(samplesz, ndims,
                                                              ncenters=2,
                                                              mus=mus, covs=covs)
 
@@ -295,101 +302,74 @@ def generate_data(samplesz, ndims):
     return data
 
 ##########################################################
-def plot_contour_uniform(samplesz, ndims, cs, rs, ax):
-    xs = cs[:, 0]
-    ys = cs[:, 1]
-
-    xmin = +9999
-    xmax = -9999
-    ymin = +9999
-    ymax = -9999
-
-    for i in range(cs.shape[0]):
-        r = rs[i]
-        if cs[i, 0] - r < xmin: xmin = cs[i, 0] - r
-        if cs[i, 0] + r > xmax: xmax = cs[i, 0] + r
-
-        if cs[i, 1] - r < ymin: ymin = cs[i, 1] - r
-        if cs[i, 1] + r > ymax: ymax = cs[i, 1] + r
-
-    xs = np.linspace(xmin, xmax, 500)
-    ys = np.linspace(ymin, ymax, 500)
-
+def mesh_xy(min, max, s):
+    xs = np.linspace(-1, +1, s)
+    ys = np.linspace(-1, +1, s)
     X, Y = np.meshgrid(xs, ys)
-
     Z = np.zeros(X.shape)
+    return X, Y, Z
 
-    for i, c in enumerate(cs):
+##########################################################
+def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax):
+    X, Y, Z = mesh_xy(-1.0, +1.0, s)
+
+    for i, c in enumerate(mus):
         x0, y0 = c
         r2 = rs[i]**2
         aux = (X-x0)**2 + (Y-y0)**2
         Z[aux <= r2] = 1
 
-    contours = ax.contour(X, Y, Z)
+    contours = ax.contour(X, Y, Z, levels=1)
     return ax
 
 ##########################################################
-def plot_contour_power(samplesz, ndims, power, mus, ax):
-    s = 500
-
-    xmin = +9999
-    xmax = -9999
-    ymin = +9999
-    ymax = -9999
-
-    for i in range(mus.shape[0]):
-        r = 1
-        if mus[i, 0] - r < xmin: xmin = mus[i, 0] - r
-        if mus[i, 0] + r > xmax: xmax = mus[i, 0] + r
-
-        if mus[i, 1] - r < ymin: ymin = mus[i, 1] - r
-        if mus[i, 1] + r > ymax: ymax = mus[i, 1] + r
-
-    xs = np.linspace(xmin, xmax, s)
-    ys = np.linspace(ymin, ymax, s)
-
-    X, Y = np.meshgrid(xs, ys)
-    Z = np.zeros(X.shape)
+def plot_contour_power(samplesz, ndims, power, mus, s, ax):
+    X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
+    Zflat = np.zeros(s*s, dtype=float)
+    epsilon = 10
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
-    Z = np.zeros(X.shape)
 
-    dists = np.zeros(coords.shape[0])
     for i in range(mus.shape[0]):
         mu = mus[0, :]
-        dists += cdist(coords, np.array([mu])).flatten()
+        d = cdist(coords, np.array([mu])).flatten()
+        # Zflat += -d**power
+        Zflat += (1 / (d+epsilon)) ** power
 
-    Z = np.reshape(dists, X.shape)
-    Z = 100 - Z**power
-    Z[Z<0] = 0
-    contours = ax.contour(X, Y, Z)
+    Z = np.reshape(Zflat, X.shape)
+    contours = ax.contour(X, Y, Z, levels=3)
     return ax
 
 ##########################################################
-def plot_contour_gaussian(samplesz, ndims, mus, covs, ax):
-    s = 500
-    xs = mus[:, 0]
-    ys = mus[:, 1]
+def plot_contour_exponential(samplesz, ndims, mus, s, ax):
+    X, Y, Z = mesh_xy(-1.0, +1.0, s)
+    coords = np.zeros((s*s, 2), dtype=float)
+    Zflat = np.zeros(s*s, dtype=float)
+    epsilon = 10
 
-    xmin = np.min(mus[:, 0]) - 5
-    xmax = np.max(mus[:, 0]) + 5
-    ymin = np.min(mus[:, 1]) - 5
-    ymax = np.max(mus[:, 1]) + 5
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
 
-    # def f(mus, cov)
+    for i in range(mus.shape[0]):
+        mu = mus[0, :]
+        d = cdist(coords, np.array([mu])).flatten()
+        # Zflat += -np.exp(d)
+        Zflat += np.exp(1 / (d+epsilon))
 
-    xs = np.linspace(xmin, xmax, s)
-    ys = np.linspace(ymin, ymax, s)
-
-    X, Y = np.meshgrid(xs, ys)
+    Z = np.reshape(Zflat, X.shape)
+    contours = ax.contour(X, Y, Z, levels=3)
+    return ax
+##########################################################
+def plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax):
+    X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
-    Z = np.zeros(X.shape)
 
     for cind in range(coords.shape[0]):
         i = cind // s
@@ -398,7 +378,7 @@ def plot_contour_gaussian(samplesz, ndims, mus, covs, ax):
             Z[i, j] += multivariate_normal(coords[cind, :], mus[mind, :],
                                            covs[mind, :, :])
 
-    contours = ax.contour(X, Y, Z)
+    contours = ax.contour(X, Y, Z, levels=3)
     return ax
 
 ##########################################################
@@ -526,6 +506,7 @@ def compute_gtruth_vectors(data, nrealizations):
 
 ##########################################################
 def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
+    s = 500
     minnclusters = 2
     minrelsize = 0.3
     nrows = len(data.keys())
@@ -547,29 +528,55 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                  format(samplesz, minnclusters, minclustsize),
                  fontsize='x-large', y=0.9)
 
-    # Scatter plot
-    for i, distrib in enumerate(data):
-        d = data[distrib]
-        ax[i, 0].scatter(d[:, 0], d[:, 1])
+    # Contour plots
+    i = 0
+    mu = np.array([[0, 0]])
+    r = np.array([.9])
+    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[i, 0])
+    i += 1
+ 
+    mus = np.zeros((1, ndims))
 
-        # fig = plt.figure(figsize=(8,8))
+    plot_contour_power(samplesz, ndims, 1, mus, s, ax[i, 0]) # 1 linear
+    i += 1
 
-        # ax = fig.gca()
-        # xx = d[:, 0]
-        # yy = d[:, 1]
-        # xmin = np.min(d[:, 0])
-        # xmax = np.max(d[:, 0])
-        # ymin = np.min(d[:, 1])
-        # ymax = np.max(d[:, 1])
-        # ax[i, 0].set_xlim(xmin, xmax)
-        # ax[i, 0].set_ylim(ymin, ymax)
-        # cfset = ax[i, 0].contourf(xx, yy, f, cmap='coolwarm')
-        # ax[i, 0].imshow(np.rot90(f), cmap='coolwarm', extent=[xmin, xmax, ymin, ymax])
-        # cset = ax[i, 0].contour(xx, yy, f, colors='k')
-        # ax[i, 0].clabel(cset, inline=1, fontsize=10)
-        # ax[i, 0].set_xlabel('X')
-        # ax[i, 0].set_ylabel('Y')
-        # plt.title('2D Gaussian Kernel density estimation')
+    plot_contour_power(samplesz, ndims, 2, mus, s, ax[i, 0]) # 1 power
+    i += 1
+
+    mus = np.zeros((1, ndims))
+    plot_contour_exponential(samplesz, ndims, mus, s, ax[i, 0]) # 1 exponential
+    i += 1
+
+    covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0])
+    i += 1
+
+    c = 0.7
+    mus = np.ones((2, ndims))*c; mus[1, :] *= -1
+    rs = np.ones(2) * .9
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0]) # 2 uniform
+    i += 1
+
+    rs = np.ones(2) * .5
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0]) # 2 uniform
+    i += 1
+
+    covs = np.array([np.eye(ndims) * 0.2] * 2)
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 gaussians
+    i += 1
+
+    covs = np.array([np.eye(ndims) * 0.1] * 2)
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 gaussians
+    i += 1
+
+    c = .2
+    mus = np.ones((2, ndims))*c; mus[0, 0] *= -1
+    cov = np.eye(ndims)
+    cov[0, 0] = .006
+    cov[1, 1] = 1.4
+    covs = np.array([cov]*2)
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0]) # 2 clusters (gaussians elliptical)
+    i += 1
 
     rels = {}
     for k in data.keys():
