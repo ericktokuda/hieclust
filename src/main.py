@@ -258,15 +258,16 @@ def generate_data(samplesz, ndims):
     mus = np.zeros((1, ndims))
     data['1,quadratic'] = generate_power(samplesz, ndims, power=2, mus=mus)
 
-    # 1 cluster (exponential)
-    mus = np.zeros((1, ndims))
-    data['1,exponential'] = generate_exponential(samplesz, ndims, mus=mus)
-
     # 1 cluster (gaussian)
     mus = np.zeros((1, ndims))
     covs = np.array([np.eye(ndims) * 0.15])
     data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
                                                       mus=mus, covs=covs)
+
+    # 1 cluster (exponential)
+    mus = np.zeros((1, ndims))
+    data['1,exponential'] = generate_exponential(samplesz, ndims, mus=mus)
+
     # 2 clusters (uniform)
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
@@ -505,13 +506,23 @@ def compute_gtruth_vectors(data, nrealizations):
     return gtruths
 
 ##########################################################
-def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
+def export_individual_axis(ax, fig, labels, outdir, pad=0.3):
+    n = ax.shape[0]*ax.shape[1]
+    for k in range(n):
+        i = k // ax.shape[1]
+        j = k  % ax.shape[1]
+        coordsys = fig.dpi_scale_trans.inverted()
+        extent = ax[i, j].get_window_extent().transformed(coordsys)
+        fig.savefig(pjoin(outdir, labels[k] + '.pdf'),
+                      bbox_inches=extent.expanded(1+pad, 1+pad))
+
+def plot_contours(data, metricarg, linkagemeths, nrealizations, outdir):
     s = 500
     cmap = 'Blues'
     minnclusters = 2
     minrelsize = 0.3
-    nrows = len(data.keys())
-    ncols = 2
+    nrows = 2
+    ncols = 5
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
     minclustsize = int(minrelsize * samplesz)
@@ -524,51 +535,38 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5),
                            squeeze=False)
 
-    # plt.tight_layout(pad=5)
-    fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
-                 format(samplesz, minnclusters, minclustsize),
-                 fontsize='x-large', y=0.9)
+    labels = list(data.keys())
 
     # Contour plots
-    i = 0
     mu = np.array([[0, 0]])
     r = np.array([.9])
-    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[i, 0], cmap) # 1 uniform
-    i += 1
+    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[0, 0], cmap) # 1 uniform
  
     mus = np.zeros((1, ndims))
 
-    plot_contour_power(samplesz, ndims, 1, mus, s, ax[i, 0], cmap) # 1 linear
-    i += 1
+    plot_contour_power(samplesz, ndims, 1, mus, s, ax[0, 1], cmap) # 1 linear
 
-    plot_contour_power(samplesz, ndims, 2, mus, s, ax[i, 0], cmap) # 1 power
-    i += 1
+    plot_contour_power(samplesz, ndims, 2, mus, s, ax[0, 2], cmap) # 1 power
 
     mus = np.zeros((1, ndims))
-    plot_contour_exponential(samplesz, ndims, mus, s, ax[i, 0], cmap) # 1 exponential
-    i += 1
+    plot_contour_exponential(samplesz, ndims, mus, s, ax[0, 3], cmap) # 1 exponential
 
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap)
-    i += 1
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[0, 4], cmap)
 
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
     rs = np.ones(2) * .9
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0], cmap) # 2 uniform
-    i += 1
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[1, 0], cmap) # 2 uniform
 
     rs = np.ones(2) * .5
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[i, 0], cmap) # 2 uniform
-    i += 1
+    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[1, 1], cmap) # 2 uniform
 
     covs = np.array([np.eye(ndims) * 0.2] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians
-    i += 1
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 2], cmap) # 2 gaussians
 
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians
-    i += 1
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 3], cmap) # 2 gaussians
 
     c = .2
     mus = np.ones((2, ndims))*c; mus[0, 0] *= -1
@@ -576,9 +574,43 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     cov[0, 0] = .006
     cov[1, 1] = 1.4
     covs = np.array([cov]*2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[i, 0], cmap) # 2 gaussians ellip
-    i += 1
+    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
 
+
+    # for i, distrib in enumerate(data): # Plot
+        # ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
+
+    plt.tight_layout(pad=4)
+    plt.savefig(pjoin(outdir, '{}d_{}_vectors.pdf'.format(ndims, samplesz)))
+    for k in range(len(ax[:])):
+        i = k // ax.shape[1]
+        j = k  % ax.shape[1]
+        ax[i, j].set_xticks([-1.0, 0, +1.0])
+        ax[i, j].set_yticks([-1.0, 0, +1.0])
+
+    export_individual_axis(ax, fig, labels, outdir)
+
+##########################################################
+def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
+    s = 500
+    cmap = 'Blues'
+    minnclusters = 2
+    minrelsize = 0.3
+    nrows = len(data.keys())
+    ncols = 1
+    samplesz = data[list(data.keys())[0]].shape[0]
+    ndims = data[list(data.keys())[0]].shape[1]
+    minclustsize = int(minrelsize * samplesz)
+
+    gtruths = compute_gtruth_vectors(data, nrealizations)
+    info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
+         format(nrealizations, samplesz, minnclusters, minclustsize))
+
+
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4),
+                           squeeze=False)
+
+    # plt.tight_layout(pad=5)
     rels = {}
     for k in data.keys():
         rels[k] = {l: [[], []] for l in linkagemeths}
@@ -660,7 +692,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         xs = np.array([gtruths[distrib][0]])
         ys = np.array([gtruths[distrib][1]])
 
-        ax[i, 1].quiver(origin, origin, xs, ys, color=palette[0], width=.01,
+        ax[i, 0].quiver(origin, origin, xs, ys, color=palette[0], width=.01,
                         angles='xy', scale_units='xy', scale=1,
                         label='Gtruth',
                         headwidth=5, headlength=4, headaxislength=3.5, zorder=0)
@@ -671,23 +703,30 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
 
             coords = np.array([v[distrib][linkagemeth][0],
                               v[distrib][linkagemeth][1]])
-            ax[i, 1].quiver(origin, origin, xs, ys, color=palette[j+1], width=.01,
+            ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j+1], width=.01,
                             angles='xy', scale_units='xy', scale=1,
                             # scale=nrealizations, label=linkagemeth,
                             label=linkagemeth,
                             headwidth=5, headlength=4, headaxislength=3.5,
                             zorder=1/np.linalg.norm(coords))
 
-            ax[i, 1].set_xlim(0, nrealizations)
-            ax[i, 1].set_ylim(0, nrealizations)
+            ax[i, 0].set_xlim(0, nrealizations)
+            ax[i, 0].set_ylim(0, nrealizations)
 
         # plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
                  # horizontalalignment='center', verticalalignment='center',
                  # fontsize='large', transform = ax[i, 1].transAxes)
 
-        ax[i, 1].set_ylabel('2 clusters', fontsize='medium')
-        ax[i, 1].set_xlabel('1 cluster', fontsize='medium')
-        ax[i, 1].legend()
+        ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
+        ax[i, 0].set_xlabel('Sum of relevances of 1 clusters', fontsize='medium')
+        ax[i, 0].legend()
+
+    plt.tight_layout(pad=4)
+    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.4)
+    fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
+                 format(samplesz, minnclusters, minclustsize),
+                 fontsize='x-large', y=0.98)
+
 
     for i, distrib in enumerate(data): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
@@ -851,7 +890,7 @@ def main():
     np.random.seed(0)
 
     ##########################################################
-    nrealizations = 3
+    nrealizations = 100
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
@@ -860,6 +899,7 @@ def main():
     # generate_dendrograms_all(data, metric, linkagemeths, args.outdir)
     # generate_dendrogram_single(data, metric)
     generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations, args.outdir)
+    # plot_contours(data, metric, linkagemeths, nrealizations, args.outdir)
     # test_inconsistency()
 
 ##########################################################
