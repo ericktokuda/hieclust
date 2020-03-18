@@ -6,6 +6,7 @@ import argparse
 import logging
 from os.path import join as pjoin
 from logging import debug, info
+import os
 
 import numpy as np
 import matplotlib; matplotlib.use('Agg')
