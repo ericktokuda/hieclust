@@ -887,6 +887,7 @@ def main():
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.INFO)
 
+    if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
 
