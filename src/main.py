@@ -8,6 +8,7 @@ from os.path import join as pjoin
 from logging import debug, info
 
 import numpy as np
+import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.cluster.hierarchy import cophenet
