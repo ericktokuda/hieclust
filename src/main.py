@@ -594,7 +594,7 @@ def plot_contours(data, metricarg, linkagemeths, nrealizations, palette, outdir)
 def hex2rgb(hexcolours, alpha=None):
     rgbcolours = np.zeros((len(hexcolours), 3), dtype=int)
     for i, h in enumerate(hexcolours):
-        rgbcolours[i, :] = np.array([int(h[i:i+2].lstrip('#'), 16) for i in (0, 2, 4)])
+        rgbcolours[i, :] = np.array([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)])
 
     if alpha != None:
         aux = np.zeros((len(hexcolours), 4), dtype=float)
@@ -682,7 +682,8 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 winner[d] = l
                 minvalue = diffnorms[d][l]
 
-    palette = hex2rgb(palettehex, alpha=.7)
+    palette = hex2rgb(palettehex, alpha=.8)
+    # print(palettehex, palette)
 
     nbins = 10
     bins = np.arange(0, 1, 0.05)
@@ -723,7 +724,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         ax[i, 0].legend()
 
     plt.tight_layout(pad=4)
-    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.4, 'vector_')
+    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.31, 'vector_')
     fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
                  format(samplesz, minnclusters, minclustsize),
                  fontsize='x-large', y=0.98)
@@ -924,6 +925,7 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # palettehex = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33']
     info('Computing:{}'.format(linkagemeths))
 
     data = generate_data(args.samplesz, args.ndims)
