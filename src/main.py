@@ -30,10 +30,6 @@ def multivariate_normal(x, mean, cov):
     Source: wikipedia"""
     ndims = len(mean)
     B = x - mean
-    # print(cov, B)
-    # print(np.linalg.solve(cov, B))
-    # print(np.sqrt((2 * np.pi)**ndims * np.linalg.det(cov)))
-    # print(np.exp(-0.5*(np.linalg.solve(cov, B).T.dot(B))))
     return (1. / (np.sqrt((2 * np.pi)**ndims * np.linalg.det(cov))) *
             np.exp(-0.5*(np.linalg.solve(cov, B).T.dot(B))))
 
@@ -108,6 +104,7 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
         leaf_font_size=12.,
         show_contracted=False,
         show_leaf_counts=True,
+        no_labels=True,
         ax=ax,
         link_color_func=lambda k: colors[k],
     )
@@ -161,15 +158,10 @@ def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], covs=[]):
         mus = np.random.rand(ncenters, ndims)
         covs = np.array([np.eye(ndims)] * ncenters)
 
-    # print(mus.shape)
-    # print(covs.shape)
-    # input()
     ind = 0
     for i in range(ncenters):
         mu = mus[i, :]
         cov = covs[i, :, :]
-        # print(mus, mu)
-        # print(cov)
         x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov, size=partsz[i])
         ind += partsz[i]
     return x
@@ -683,7 +675,6 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 minvalue = diffnorms[d][l]
 
     palette = hex2rgb(palettehex, alpha=.8)
-    # print(palettehex, palette)
 
     nbins = 10
     bins = np.arange(0, 1, 0.05)
@@ -807,7 +798,12 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
             z = linkage(data[k], l, metric)
             clustids, rel = filter_clustering(data[k], z, minclustsize, minnclusters)
             plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
-            plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
+
+            if len(clustids) == 1:
+                text = 'rel:({:.3f}, 0.0)'.format(rel)
+            else:
+                text = 'rel:(0.0, {:.3f})'.format(rel)
+            plt.text(0.7, 0.9, rel,
                      horizontalalignment='center', verticalalignment='center',
                      fontsize=24, transform = ax[i, j+1].transAxes)
 
@@ -821,7 +817,7 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
     plt.savefig(pjoin(outdir, '{}d_{}_dendrograms.pdf'.format(ndims, samplesz)))
 
 ##########################################################
-def plot_uniform_distribs_scale(data, palette, outdir):
+def plot_article_uniform_distribs_scale(data, palette, outdir):
     info('Plotting uniform bimodal distrib...')
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     k = '2,uniform,rad0.9'
@@ -850,7 +846,7 @@ def plot_uniform_distribs_scale(data, palette, outdir):
     export_individual_axis(ax, fig, [k], outdir, 0.3, 'points_')
 
 ##########################################################
-def generate_dendrogram_single(data, metric):
+def generate_dendrogram_single(data, metric, palettehex, outdir):
     minnclusters = 2
     minrelsize = 0.3
     nrows = len(data.keys())
@@ -881,15 +877,20 @@ def generate_dendrogram_single(data, metric):
         info(k)
         nclusters = int(k.split(',')[0])
 
-        z = linkage(data[k], 'ward', metric)
+        z = linkage(data[k], 'single', metric)
         clustids, rel = filter_clustering(data[k], z, minclustsize,
                                                 minnclusters)
-        colours = plot_dendrogram(z, 'ward', ax[i, 1], rel, clustids)
+        colours = plot_dendrogram(z, 'single', ax[i, 1], rel, clustids, palettehex)
         plot_scatter(data[k], ax[i, 0], ndims, colours)
 
-        plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
+        if len(clustids) == 1:
+            text = 'rel: ({:.3f}, 0)'.format(rel)
+        else:
+            text = 'rel: (0, {:.3f})'.format(rel)
+        plt.text(0.7, 0.9, text,
+        # plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
                  horizontalalignment='center', verticalalignment='center',
-                 fontsize=30, transform = ax[i, 1].transAxes)
+                 fontsize=20, transform = ax[i, 1].transAxes)
 
     # for ax_, col in zip(ax[0, 1:], linkagemeths):
         # ax_.set_title(col, size=36)
@@ -902,7 +903,24 @@ def generate_dendrogram_single(data, metric):
                  y=.92, fontsize=32)
 
     plt.tight_layout()
-    plt.savefig('/tmp/{}d-single.pdf'.format(ndims))
+    plt.savefig(pjoin(outdir, '{}d-single.pdf'.format(ndims)))
+
+##########################################################
+def plot_article_quiver(palettehex, outdir):
+    fig, ax = plt.subplots(figsize=(5, 5))
+    origin = np.zeros(2)
+    ax.quiver(origin, origin, [0.595], [1.795], color=palettehex[0], width=.01,
+              angles='xy', scale_units='xy', scale=1,
+              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+    ax.scatter([0.6], [1.8], s=2, c='k')
+    plt.text(0.72, 0.9, '(0.6, 1.8)',
+             horizontalalignment='center', verticalalignment='center',
+             fontsize='large', transform = ax.transAxes)
+    ax.set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
+    ax.set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 2)
+    plt.savefig(pjoin(outdir, 'arrow_dummy.pdf'))
 
 ##########################################################
 def main():
@@ -918,9 +936,9 @@ def main():
 
     if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
     np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(0)
+    np.random.seed(1)
 
-    nrealizations = 10
+    nrealizations = 500
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
@@ -930,11 +948,12 @@ def main():
 
     data = generate_data(args.samplesz, args.ndims)
     generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    # generate_dendrogram_single(data, metric)
+    generate_dendrogram_single(data, metric, palettehex, args.outdir)
     generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
-                                   palettehex, args.outdir)
-    plot_uniform_distribs_scale(data, palettehex, args.outdir)
+                                   # palettehex, args.outdir)
     plot_contours(data, metric, linkagemeths, nrealizations, palettehex, args.outdir)
+    plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
+    plot_article_quiver(data, palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
