@@ -9,19 +9,20 @@ from logging import debug, info
 import os
 
 import numpy as np
+
 import matplotlib; matplotlib.use('Agg')
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt; plt.style.use('ggplot')
+import matplotlib.cm as cm
+from matplotlib.patches import Circle
+from mpl_toolkits.mplot3d import Axes3D
+
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 import scipy.stats as stats
 from scipy.spatial.distance import cdist
-from matplotlib.patches import Circle
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 
-from mpl_toolkits.mplot3d import Axes3D
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -67,7 +68,7 @@ def fancy_dendrogram(*args, **kwargs):
             plt.axhline(y=max_d, c='k')
     return ddata
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
+def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
     given by @lthresh
 
@@ -84,7 +85,8 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids):
     z[:, 2] = dists
     n = z.shape[0] + 1
     colors = n * (n - 1) * ['k']
-    vividcolors = ['b', 'g', 'r', 'c', 'm']
+    # vividcolors = ['b', 'g', 'r', 'c', 'm']
+    vividcolors = palette.copy()
 
     for clustid in clustids:
         c = vividcolors.pop()
@@ -240,6 +242,7 @@ def generate_data(samplesz, ndims):
     list of np.ndarray: each element is a nx2 np.ndarray
     """
 
+    info('Generating data...')
     data = {}
 
     # fig, ax = plt.subplots(2)
@@ -508,17 +511,19 @@ def compute_gtruth_vectors(data, nrealizations):
     return gtruths
 
 ##########################################################
-def export_individual_axis(ax, fig, labels, outdir, pad=0.3):
+def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
     n = ax.shape[0]*ax.shape[1]
     for k in range(n):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
         extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, labels[k] + '.pdf'),
+        fig.savefig(pjoin(outdir, prefix + labels[k] + '.pdf'),
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
-def plot_contours(data, metricarg, linkagemeths, nrealizations, outdir):
+##########################################################
+def plot_contours(data, metricarg, linkagemeths, nrealizations, palette, outdir):
+    info('Generating contour plots...')
     s = 500
     cmap = 'Blues'
     minnclusters = 2
@@ -530,12 +535,8 @@ def plot_contours(data, metricarg, linkagemeths, nrealizations, outdir):
     minclustsize = int(minrelsize * samplesz)
 
     gtruths = compute_gtruth_vectors(data, nrealizations)
-    info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
-         format(nrealizations, samplesz, minnclusters, minclustsize))
 
-
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5),
-                           squeeze=False)
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5), squeeze=False)
 
     labels = list(data.keys())
 
@@ -579,21 +580,34 @@ def plot_contours(data, metricarg, linkagemeths, nrealizations, outdir):
     plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
 
 
-    # for i, distrib in enumerate(data): # Plot
-        # ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
-
     plt.tight_layout(pad=4)
-    plt.savefig(pjoin(outdir, '{}d_{}_vectors.pdf'.format(ndims, samplesz)))
+    plt.savefig(pjoin(outdir, 'contour_all_{}d_{}.pdf'.format(ndims, samplesz)))
     for k in range(len(ax[:])):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
         ax[i, j].set_xticks([-1.0, 0, +1.0])
         ax[i, j].set_yticks([-1.0, 0, +1.0])
 
-    export_individual_axis(ax, fig, labels, outdir)
+    export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
-def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations, outdir):
+def hex2rgb(hexcolours, alpha=None):
+    rgbcolours = np.zeros((len(hexcolours), 3), dtype=int)
+    for i, h in enumerate(hexcolours):
+        rgbcolours[i, :] = np.array([int(h[i:i+2].lstrip('#'), 16) for i in (0, 2, 4)])
+
+    if alpha != None:
+        aux = np.zeros((len(hexcolours), 4), dtype=float)
+        aux[:, :3] = rgbcolours / 255.0
+        aux[:, -1] = .7 # alpha
+        rgbcolours = aux
+
+    return rgbcolours
+
+##########################################################
+def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
+                                   palettehex, outdir):
+    info('Computing relevances...')
     s = 500
     cmap = 'Blues'
     minnclusters = 2
@@ -668,23 +682,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 winner[d] = l
                 minvalue = diffnorms[d][l]
 
-    palette = np.array([
-    [0.0,0.0,0.0],
-    [244,109,67],
-    [253,174,97],
-    [254,224,139],
-    [217,239,139],
-    [166,217,106],
-    [102,189,99],
-    [26,152,80],
-           ])
-    alpha = .7
-    palette /= 255.0
-    colours = np.zeros((palette.shape[0], 4), dtype=float)
-    colours[:, :3] = palette
-    colours[:, -1] = alpha
-    palette = colours
-
+    palette = hex2rgb(palettehex, alpha=.7)
 
     nbins = 10
     bins = np.arange(0, 1, 0.05)
@@ -694,10 +692,10 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         xs = np.array([gtruths[distrib][0]])
         ys = np.array([gtruths[distrib][1]])
 
-        ax[i, 0].quiver(origin, origin, xs, ys, color=palette[0], width=.01,
+        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
                         angles='xy', scale_units='xy', scale=1,
                         label='Gtruth',
-                        headwidth=5, headlength=4, headaxislength=3.5, zorder=0)
+                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
 
         for j, linkagemeth in enumerate(linkagemeths):
             xs = np.array([v[distrib][linkagemeth][0]])
@@ -705,26 +703,27 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
 
             coords = np.array([v[distrib][linkagemeth][0],
                               v[distrib][linkagemeth][1]])
-            ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j+1], width=.01,
+            ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j], width=.01,
                             angles='xy', scale_units='xy', scale=1,
                             # scale=nrealizations, label=linkagemeth,
                             label=linkagemeth,
                             headwidth=5, headlength=4, headaxislength=3.5,
-                            zorder=1/np.linalg.norm(coords))
+                            zorder=1/np.linalg.norm(coords)+3)
 
             ax[i, 0].set_xlim(0, nrealizations)
             ax[i, 0].set_ylim(0, nrealizations)
+            # ax[i, 0].set_axisbelow(True)
 
         # plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
                  # horizontalalignment='center', verticalalignment='center',
                  # fontsize='large', transform = ax[i, 1].transAxes)
 
         ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
-        ax[i, 0].set_xlabel('Sum of relevances of 1 clusters', fontsize='medium')
+        ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
         ax[i, 0].legend()
 
     plt.tight_layout(pad=4)
-    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.4)
+    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.4, 'vector_')
     fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
                  format(samplesz, minnclusters, minclustsize),
                  fontsize='x-large', y=0.98)
@@ -733,7 +732,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     for i, distrib in enumerate(data): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
 
-    plt.savefig(pjoin(outdir, '{}d_{}_vectors.pdf'.format(ndims, samplesz)))
+    plt.savefig(pjoin(outdir, 'vector_{}d_{}.pdf'.format(ndims, samplesz)))
 
 ##########################################################
 def test_inconsistency():
@@ -767,7 +766,8 @@ def test_inconsistency():
         plt.clf()
 
 ##########################################################
-def generate_dendrograms_all(data, metricarg, linkagemeths, outdir):
+def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
+    info('Generating dendrograms...')
     minnclusters = 2
     minrelsize = 0.3
     samplesz = data[list(data.keys())[0]].shape[0]
@@ -795,9 +795,8 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, outdir):
         ax[i, j] = fig.add_subplot(nrows, ncols, subplotidx+1, projection=proj)
 
     for i, k in enumerate(data):
-        info(k)
         nclusters = int(k.split(',')[0])
-        plot_scatter(data[k], ax[i, 0], ndims)
+        plot_scatter(data[k], ax[i, 0], ndims, palette[1])
 
         for j, l in enumerate(linkagemeths):
             if l == 'centroid' or l == 'median' or l == 'ward':
@@ -805,9 +804,8 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, outdir):
             else:
                 metric = metricarg
             z = linkage(data[k], l, metric)
-            clustids, rel = filter_clustering(data[k], z, minclustsize,
-                                                    minnclusters)
-            plot_dendrogram(z, l, ax[i, j+1], rel, clustids)
+            clustids, rel = filter_clustering(data[k], z, minclustsize, minnclusters)
+            plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
             plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
                      horizontalalignment='center', verticalalignment='center',
                      fontsize=24, transform = ax[i, j+1].transAxes)
@@ -820,6 +818,35 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, outdir):
 
     plt.tight_layout()
     plt.savefig(pjoin(outdir, '{}d_{}_dendrograms.pdf'.format(ndims, samplesz)))
+
+##########################################################
+def plot_uniform_distribs_scale(data, palette, outdir):
+    info('Plotting uniform bimodal distrib...')
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
+    k = '2,uniform,rad0.9'
+    ndims = 2
+    plot_scatter(data[k], ax[0, 0], ndims, palette[1])
+
+    mycolour = 'k'
+    c = (0, 0)
+    r = 2
+    m = r * np.sqrt(2) / 2
+    circle = Circle(c, r, facecolor='none',
+                    edgecolor=mycolour, linestyle='--',
+                    linewidth=2, alpha=0.5,
+                    )
+    ax[0, 0].add_patch(circle)
+    ax[0, 0].plot([0, r], [0, 0], 'k--', linewidth=2, alpha=.5)
+    
+    nnoise = 20
+    noisex = np.random.rand(nnoise) * 4 + (-2)
+    noisey = np.random.rand(nnoise) * 4 + (-2)
+    ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
+    ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
+    ax[0, 0].set_xticks([-2.0, -1.0, 0, +1.0, +2.0])
+    ax[0, 0].set_yticks([-2.0, -1.0, 0, +1.0, +2.0])
+
+    export_individual_axis(ax, fig, [k], outdir, 0.3, 'points_')
 
 ##########################################################
 def generate_dendrogram_single(data, metric):
@@ -892,17 +919,20 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
 
-    ##########################################################
-    nrealizations = 100
+    nrealizations = 10
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
+    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     info('Computing:{}'.format(linkagemeths))
+
     data = generate_data(args.samplesz, args.ndims)
-    # generate_dendrograms_all(data, metric, linkagemeths, args.outdir)
+    generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric)
-    generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations, args.outdir)
-    # plot_contours(data, metric, linkagemeths, nrealizations, args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
+                                   palettehex, args.outdir)
+    plot_uniform_distribs_scale(data, palettehex, args.outdir)
+    plot_contours(data, metric, linkagemeths, nrealizations, palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
