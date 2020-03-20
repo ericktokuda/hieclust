@@ -23,6 +23,7 @@ from scipy.cluster.hierarchy import inconsistent
 import scipy.stats as stats
 from scipy.spatial.distance import cdist
 
+from sklearn import datasets
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -108,7 +109,8 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
         ax=ax,
         link_color_func=lambda k: colors[k],
     )
-    ax.axhline(y=lineh, linestyle='--')
+    if lthresh > 0:
+        ax.axhline(y=lineh, linestyle='--')
     return colors[:n]
 
 ##########################################################
@@ -218,10 +220,10 @@ def generate_power(samplesz, ndims, power, mus=[]):
 
 ##########################################################
 def plot_scatter(x, ax, ndims, coloursarg=None):
-    if ndims == 2:
-        ax.scatter(x[:,0], x[:,1], c=coloursarg)
-    elif ndims == 3:
+    if ndims == 3:
         ax.scatter(x[:, 0], x[:, 1], x[:, 2])
+    else:
+        ax.scatter(x[:,0], x[:,1], c=coloursarg)
 
 ##########################################################
 def generate_data(samplesz, ndims):
@@ -257,7 +259,7 @@ def generate_data(samplesz, ndims):
 
     # 1 cluster (gaussian)
     mus = np.zeros((1, ndims))
-    covs = np.array([np.eye(ndims) * 0.15])
+    covs = np.array([np.eye(ndims) * 0.1])
     data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
                                                       mus=mus, covs=covs)
 
@@ -297,6 +299,9 @@ def generate_data(samplesz, ndims):
     data['2,gaussian,elliptical'] = generate_multivariate_normal(samplesz, ndims,
                                                                ncenters=2,
                                                                mus=mus,covs=covs)
+
+
+    # data['4,iris'] = datasets.load_iris().data
     return data
 
 ##########################################################
@@ -308,7 +313,7 @@ def mesh_xy(min, max, s):
     return X, Y, Z
 
 ##########################################################
-def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax, cmap):
+def plot_contour_uniform(mus, rs, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
 
     for i, c in enumerate(mus):
@@ -321,11 +326,11 @@ def plot_contour_uniform(samplesz, ndims, mus, rs, s, ax, cmap):
     return ax
 
 ##########################################################
-def plot_contour_power(samplesz, ndims, power, mus, s, ax, cmap):
+def plot_contour_power(ndims, power, mus, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
-    epsilon = 0.4
+    epsilon = 1.2
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
@@ -342,11 +347,11 @@ def plot_contour_power(samplesz, ndims, power, mus, s, ax, cmap):
     return ax
 
 ##########################################################
-def plot_contour_exponential(samplesz, ndims, mus, s, ax, cmap):
+def plot_contour_exponential(ndims, mus, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
-    epsilon = 0.4
+    epsilon = 0.5
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
@@ -362,7 +367,7 @@ def plot_contour_exponential(samplesz, ndims, mus, s, ax, cmap):
     contours = ax.contour(X, Y, Z, cmap=cmap)
     return ax
 ##########################################################
-def plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax, cmap):
+def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     for i in range(X.shape[0]):
@@ -514,54 +519,44 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
-def plot_contours(data, metricarg, linkagemeths, nrealizations, palette, outdir):
-    info('Generating contour plots...')
+def plot_contours(labels, outdir):
+    ndims = 2
     s = 500
-    cmap = 'Blues'
-    minnclusters = 2
-    minrelsize = 0.3
     nrows = 2
     ncols = 5
-    samplesz = data[list(data.keys())[0]].shape[0]
-    ndims = data[list(data.keys())[0]].shape[1]
-    minclustsize = int(minrelsize * samplesz)
-
-    gtruths = compute_gtruth_vectors(data, nrealizations)
+    cmap = 'Blues'
 
     fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5), squeeze=False)
-
-    labels = list(data.keys())
-
     # Contour plots
     mu = np.array([[0, 0]])
     r = np.array([.9])
-    plot_contour_uniform(samplesz, ndims, mu, r, s, ax[0, 0], cmap) # 1 uniform
+    plot_contour_uniform(mu, r, s, ax[0, 0], cmap) # 1 uniform
  
     mus = np.zeros((1, ndims))
 
-    plot_contour_power(samplesz, ndims, 1, mus, s, ax[0, 1], cmap) # 1 linear
+    plot_contour_power(ndims, 1, mus, s, ax[0, 1], cmap) # 1 linear
 
-    plot_contour_power(samplesz, ndims, 2, mus, s, ax[0, 2], cmap) # 1 power
-
-    mus = np.zeros((1, ndims))
-    plot_contour_exponential(samplesz, ndims, mus, s, ax[0, 3], cmap) # 1 exponential
+    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap) # 1 power
 
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[0, 4], cmap)
+    plot_contour_gaussian(ndims, mus, covs, s, ax[0, 3], cmap)
+
+    mus = np.zeros((1, ndims))
+    plot_contour_exponential(ndims, mus, s, ax[0, 4], cmap) # 1 exponential
 
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
     rs = np.ones(2) * .9
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[1, 0], cmap) # 2 uniform
+    plot_contour_uniform(mus, rs, s, ax[1, 0], cmap) # 2 uniform
 
     rs = np.ones(2) * .5
-    plot_contour_uniform(samplesz, ndims, mus, rs, s, ax[1, 1], cmap) # 2 uniform
+    plot_contour_uniform(mus, rs, s, ax[1, 1], cmap) # 2 uniform
 
     covs = np.array([np.eye(ndims) * 0.2] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 2], cmap) # 2 gaussians
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 2], cmap) # 2 gaussians
 
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 3], cmap) # 2 gaussians
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 3], cmap) # 2 gaussians
 
     c = .2
     mus = np.ones((2, ndims))*c; mus[0, 0] *= -1
@@ -569,11 +564,11 @@ def plot_contours(data, metricarg, linkagemeths, nrealizations, palette, outdir)
     cov[0, 0] = .006
     cov[1, 1] = 1.4
     covs = np.array([cov]*2)
-    plot_contour_gaussian(samplesz, ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
 
 
     plt.tight_layout(pad=4)
-    plt.savefig(pjoin(outdir, 'contour_all_{}d_{}.pdf'.format(ndims, samplesz)))
+    plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
     for k in range(len(ax[:])):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
@@ -715,7 +710,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         ax[i, 0].legend()
 
     plt.tight_layout(pad=4)
-    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.31, 'vector_')
+    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.36, 'vector_')
     fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
                  format(samplesz, minnclusters, minclustsize),
                  fontsize='x-large', y=0.98)
@@ -735,9 +730,6 @@ def test_inconsistency():
     for i, distrib in enumerate(data):
         z = linkage(data[distrib], 'single')
 
-        print(distrib)
-        print(z)
-        print(inconsistent(z))
 
         fancy_dendrogram(
         # dendrogram(
@@ -797,24 +789,29 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
                 metric = metricarg
             z = linkage(data[k], l, metric)
             clustids, rel = filter_clustering(data[k], z, minclustsize, minnclusters)
-            plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
+            # plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
+            plot_dendrogram(z, l, ax[i, j+1], 0, clustids, ['k']*10)
 
             if len(clustids) == 1:
                 text = 'rel:({:.3f}, 0.0)'.format(rel)
             else:
                 text = 'rel:(0.0, {:.3f})'.format(rel)
-            plt.text(0.7, 0.9, rel,
-                     horizontalalignment='center', verticalalignment='center',
-                     fontsize=24, transform = ax[i, j+1].transAxes)
 
-    for ax_, col in zip(ax[0, 1:], linkagemeths):
-        ax_.set_title(col, size=20)
+            # plt.text(0.6, 0.9, text,
+                     # horizontalalignment='center', verticalalignment='center',
+                     # fontsize=24, transform = ax[i, j+1].transAxes)
+
+    # for ax_, col in zip(ax[0, 1:], linkagemeths):
+        # ax_.set_title(col, size=20)
 
     for i, k in enumerate(data):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-    plt.tight_layout()
-    plt.savefig(pjoin(outdir, '{}d_{}_dendrograms.pdf'.format(ndims, samplesz)))
+    export_individual_axis(ax[0, 1:].reshape(len(linkagemeths), 1), fig, linkagemeths,
+                           outdir, 0.2, 'dendrogram_uniform_')
+    plt.tight_layout(pad=4)
+
+    plt.savefig(pjoin(outdir, 'dendrogram_all_{}d_{}.pdf'.format(ndims, samplesz)))
 
 ##########################################################
 def plot_article_uniform_distribs_scale(data, palette, outdir):
@@ -829,13 +826,17 @@ def plot_article_uniform_distribs_scale(data, palette, outdir):
     r = 2
     m = r * np.sqrt(2) / 2
     circle = Circle(c, r, facecolor='none',
-                    edgecolor=mycolour, linestyle='--',
+                    edgecolor=mycolour, linestyle='-',
                     linewidth=2, alpha=0.5,
                     )
     ax[0, 0].add_patch(circle)
-    ax[0, 0].plot([0, r], [0, 0], 'k--', linewidth=2, alpha=.5)
+    origin = np.zeros(2)
+    # ax[0, 0].plot([0, r], [0, 0], 'k--', linewidth=2, alpha=.5)
+    ax[0, 0].quiver(origin, origin, [-1.41], [1.41], color=mycolour, width=.008,
+              angles='xy', scale_units='xy', scale=1, alpha=.3,
+              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
     
-    nnoise = 20
+    nnoise = 60
     noisex = np.random.rand(nnoise) * 4 + (-2)
     noisey = np.random.rand(nnoise) * 4 + (-2)
     ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
@@ -936,7 +937,7 @@ def main():
 
     if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
     np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(1)
+    np.random.seed(0)
 
     nrealizations = 500
 
@@ -950,10 +951,10 @@ def main():
     generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     generate_dendrogram_single(data, metric, palettehex, args.outdir)
     generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
-                                   # palettehex, args.outdir)
-    plot_contours(data, metric, linkagemeths, nrealizations, palettehex, args.outdir)
+                                   palettehex, args.outdir)
+    plot_contours(list(data.keys), args.outdir)
     plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
-    plot_article_quiver(data, palettehex, args.outdir)
+    plot_article_quiver(palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
