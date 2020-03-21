@@ -22,6 +22,7 @@ from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 import scipy.stats as stats
 from scipy.spatial.distance import cdist
+import pandas as pd
 
 from sklearn import datasets
 
@@ -135,8 +136,8 @@ def generate_uniform(samplesz, ndims, cs, rs):
         r = rs[i]
         min_ = c - r
         range_ = 2 * r
-        print(i, partsz, ndims, range_, min_)
-        aux = np.random.rand(ndims*partsz[i], ndims) * range_ + min_
+        boxsample = ndims*partsz[i] + 1
+        aux = np.random.rand(boxsample, ndims) * range_ + min_
         dists = cdist(aux, np.array([c]))
         inds = np.where(dists <= r)[0][:partsz[i]]
         data[dataind:dataind+partsz[i]] = aux[inds, :]
@@ -670,6 +671,8 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 winner[d] = l
                 minvalue = diffnorms[d][l]
 
+    pd.DataFrame(diffnorms).to_csv(pjoin(outdir, 'results.csv'),
+                                   index_label='linkagemeth')
     palette = hex2rgb(palettehex, alpha=.8)
 
     nbins = 10
