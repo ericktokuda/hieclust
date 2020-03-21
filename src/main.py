@@ -135,7 +135,8 @@ def generate_uniform(samplesz, ndims, cs, rs):
         r = rs[i]
         min_ = c - r
         range_ = 2 * r
-        aux = np.random.rand(2*partsz[i], ndims) * range_ + min_
+        print(i, partsz, ndims, range_, min_)
+        aux = np.random.rand(ndims*partsz[i], ndims) * range_ + min_
         dists = cdist(aux, np.array([c]))
         inds = np.where(dists <= r)[0][:partsz[i]]
         data[dataind:dataind+partsz[i]] = aux[inds, :]
@@ -245,7 +246,7 @@ def generate_data(samplesz, ndims):
     # ax[1] = plot_contour_power(samplesz, ndims, 5, mus, ax[1])
     # plt.show()
 
-    mu = np.array([[0, 0]])
+    mu = np.zeros((1, ndims))
     r = np.array([.9])
     data['1,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mu, r)
  
@@ -903,7 +904,6 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
                  format(samplesz, minnclusters, minclustsize),
                  y=.92, fontsize=32)
 
-    plt.tight_layout()
     plt.savefig(pjoin(outdir, '{}d-single.pdf'.format(ndims)))
 
 ##########################################################
@@ -939,7 +939,7 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
 
-    nrealizations = 500
+    nrealizations = 400
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
@@ -952,7 +952,7 @@ def main():
     generate_dendrogram_single(data, metric, palettehex, args.outdir)
     generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
                                    palettehex, args.outdir)
-    plot_contours(list(data.keys), args.outdir)
+    plot_contours(list(data.keys()), args.outdir)
     plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
     plot_article_quiver(palettehex, args.outdir)
     # test_inconsistency()
