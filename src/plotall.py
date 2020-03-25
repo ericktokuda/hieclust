@@ -19,7 +19,10 @@ import pandas as pd
 import plotly
 import plotly.graph_objects as go
 
+import imageio
+
 def plot_parallel(df, colours, ax, fig):
+    dim = df.dim[0]
     df = df.T.reset_index()
     df = df[df['index'] != 'dim']
 
@@ -32,14 +35,17 @@ def plot_parallel(df, colours, ax, fig):
     )
     ax.yaxis.grid(False)
     ax.xaxis.set_ticks_position('top')
-    # ax.set_yticks([0, 100, 200, 300, 400, 500])
+    ax.set_yticks([0, 100, 200, 300, 400, 500])
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 10)
-    ax.set_ylabel('Accumulated error')
+    ax.set_ylabel('Accumulated error', fontsize=15)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
-    ax.legend(loc=[.6, .6])
+    ax.legend(
+        fontsize=15,
+        loc=[.6, .6],
+    )
 
     ax.tick_params(bottom="off")
     ax.tick_params(axis='x', length=0)
@@ -50,8 +56,17 @@ def plot_parallel(df, colours, ax, fig):
     # axicon.set_yticks([])
 
     trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
-    line = Line2D([0, .95], [-.02, -.02], color='k', transform=trans)
+    line = Line2D([0, .95], [-.03, -.03], color='k', transform=trans)
     fig.lines.append(line)
+
+##########################################################
+def include_icons(iconpaths, fig):
+    for i, iconpath in enumerate(iconpaths):
+        im = imageio.imread(iconpath)
+        print('im.shape:{}'.format(im.shape))
+        newax = fig.add_axes([0.22+i*.074, 0.79, 0.05, 0.2], anchor='NE', zorder=-1)
+        newax.imshow(im, aspect='equal')
+        newax.axis('off')
 
 ##########################################################
 def main():
@@ -80,7 +95,25 @@ def main():
         slice = slice.set_index('distrib')
         plot_parallel(slice, colours, axs[i, 0], fig)
 
-    plt.tight_layout()
+    # plt.tight_layout(rect=(0.1, 0, 1, 1))
+    plt.tight_layout(rect=(0.1, 0, 1, 1), h_pad=-3)
+
+    filenames = [
+        'icon_1,uniform,rad0.9.png',
+        'icon_1,linear.png',
+        'icon_1,quadratic.png',
+        'icon_1,gaussian.png',
+        'icon_1,exponential.png',
+        'icon_2,uniform,rad0.9.png',
+        'icon_2,uniform,rad0.5.png',
+        'icon_2,gaussian,std0.2.png',
+        'icon_2,gaussian,std0.1.png',
+        'icon_2,gaussian,elliptical.png',
+    ]
+    iconpaths = [ pjoin('/tmp/', f) for f in filenames ]
+
+    include_icons(iconpaths, fig)
+
     plt.savefig(pjoin(args.outdir, 'out.pdf'))
     info('Elapsed time:{}'.format(time.time()-t0))
 

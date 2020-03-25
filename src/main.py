@@ -318,7 +318,7 @@ def mesh_xy(min, max, s):
     return X, Y, Z
 
 ##########################################################
-def plot_contour_uniform(mus, rs, s, ax, cmap):
+def plot_contour_uniform(mus, rs, s, ax, cmap, linewidth):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
 
     for i, c in enumerate(mus):
@@ -327,11 +327,11 @@ def plot_contour_uniform(mus, rs, s, ax, cmap):
         aux = (X-x0)**2 + (Y-y0)**2
         Z[aux <= r2] = 1
 
-    contours = ax.contour(X, Y, Z, levels=1, cmap=cmap, linewidths=1)
+    contours = ax.contour(X, Y, Z, levels=1, cmap=cmap, linewidths=linewidth)
     return ax
 
 ##########################################################
-def plot_contour_power(ndims, power, mus, s, ax, cmap):
+def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
@@ -348,11 +348,11 @@ def plot_contour_power(ndims, power, mus, s, ax, cmap):
         Zflat += (1 / (d+epsilon)) ** power
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=linewidth)
     return ax
 
 ##########################################################
-def plot_contour_exponential(ndims, mus, s, ax, cmap):
+def plot_contour_exponential(ndims, mus, s, ax, cmap, linewidth):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
@@ -369,10 +369,10 @@ def plot_contour_exponential(ndims, mus, s, ax, cmap):
         Zflat += np.exp(1 / (d+epsilon))
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=linewidth)
     return ax
 ##########################################################
-def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap):
+def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap, linewidth):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     for i in range(X.shape[0]):
@@ -386,7 +386,7 @@ def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap):
             Z[i, j] += multivariate_normal(coords[cind, :], mus[mind, :],
                                            covs[mind, :, :])
 
-    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=linewidth)
     return ax
 
 ##########################################################
@@ -524,45 +524,51 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
-def plot_contours(labels, outdir):
+def plot_contours(labels, outdir, icons=False):
     ndims = 2
     s = 500
     nrows = 2
     ncols = 5
     cmap = 'Blues'
 
-    figscale = 5
+    if icons:
+        figscale = .3
+        linewidth = 1
+    else:
+        figscale = 5
+        linewidth = 3
+
     fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*figscale, nrows*figscale), squeeze=False)
     # Contour plots
     mu = np.array([[0, 0]])
     r = np.array([.9])
-    plot_contour_uniform(mu, r, s, ax[0, 0], cmap) # 1 uniform
+    plot_contour_uniform(mu, r, s, ax[0, 0], cmap, linewidth) # 1 uniform
  
     mus = np.zeros((1, ndims))
 
-    plot_contour_power(ndims, 1, mus, s, ax[0, 1], cmap) # 1 linear
+    plot_contour_power(ndims, 1, mus, s, ax[0, 1], cmap, linewidth) # 1 linear
 
-    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap) # 1 power
+    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap, linewidth) # 1 power
 
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
-    plot_contour_gaussian(ndims, mus, covs, s, ax[0, 3], cmap)
+    plot_contour_gaussian(ndims, mus, covs, s, ax[0, 3], cmap, linewidth)
 
     mus = np.zeros((1, ndims))
-    plot_contour_exponential(ndims, mus, s, ax[0, 4], cmap) # 1 exponential
+    plot_contour_exponential(ndims, mus, s, ax[0, 4], cmap, linewidth) # 1 exponential
 
     c = 0.7
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
     rs = np.ones(2) * .9
-    plot_contour_uniform(mus, rs, s, ax[1, 0], cmap) # 2 uniform
+    plot_contour_uniform(mus, rs, s, ax[1, 0], cmap, linewidth) # 2 uniform
 
     rs = np.ones(2) * .5
-    plot_contour_uniform(mus, rs, s, ax[1, 1], cmap) # 2 uniform
+    plot_contour_uniform(mus, rs, s, ax[1, 1], cmap, linewidth) # 2 uniform
 
     covs = np.array([np.eye(ndims) * 0.2] * 2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 2], cmap) # 2 gaussians
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 2], cmap, linewidth) # 2 gaussians
 
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 3], cmap) # 2 gaussians
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 3], cmap, linewidth) # 2 gaussians
 
     mus = np.zeros((2, ndims));
     mus[0, 0] = -.3
@@ -570,26 +576,26 @@ def plot_contours(labels, outdir):
     cov = np.eye(ndims)
     cov[0, 0] = .01
     covs = np.array([cov]*2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 4], cmap, linewidth) # 2 gaussians ellip
 
 
     plt.tight_layout(pad=4)
     plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
     for i in range(ax[:].shape[0]):
         for j in range(ax[:].shape[1]):
-            ax[i, j].set_xticks([-1.0, 0, +1.0])
-            ax[i, j].set_yticks([-1.0, 0, +1.0])
-            ax[i, j].set_xticks([])
+            if icons:
+                ax[i, j].set_yticks([])
+                ax[i, j].grid(False)
+                ax[i, j].set_yticklabels([])
+                ax[i, j].set_xticklabels([])
+            else:
+                ax[i, j].set_xticks([-1.0, 0, +1.0])
+                ax[i, j].set_yticks([-1.0, 0, +1.0])
+                ax[i, j].set_xticks([])
 
-    export_individual_axis(ax, fig, labels, outdir, .0, 'contour_')
-
-    # for i in range(ax[:].shape[0]):
-        # for j in range(ax[:].shape[1]):
-            # ax[i, j].set_yticks([])
-            # ax[i, j].grid(False)
-            # ax[i, j].set_yticklabels([])
-            # ax[i, j].set_xticklabels([])
-    # export_individual_axis(ax, fig, labels, outdir, .0, 'contour_icon_')
+    if icons: pref = 'icon_'
+    else: pref = 'contour_'
+    export_individual_axis(ax, fig, labels, outdir, .0, pref)
 
 ##########################################################
 def hex2rgb(hexcolours, alpha=None):
@@ -976,12 +982,13 @@ def main():
     data = generate_data(args.samplesz, args.ndims)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
-                                   palettehex, args.outdir)
-    return
+    # generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
+                                   # palettehex, args.outdir)
+    # return
     plot_contours(list(data.keys()), args.outdir)
-    plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
-    plot_article_quiver(palettehex, args.outdir)
+    plot_contours(list(data.keys()), args.outdir, True)
+    # plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
+    # plot_article_quiver(palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
