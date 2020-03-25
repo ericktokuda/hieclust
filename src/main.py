@@ -136,7 +136,7 @@ def generate_uniform(samplesz, ndims, cs, rs):
         r = rs[i]
         min_ = c - r
         range_ = 2 * r
-        boxsample = ndims*partsz[i] + 1
+        boxsample = 2*ndims*partsz[i]
         aux = np.random.rand(boxsample, ndims) * range_ + min_
         dists = cdist(aux, np.array([c]))
         inds = np.where(dists <= r)[0][:partsz[i]]
@@ -292,16 +292,19 @@ def generate_data(samplesz, ndims):
                                                              mus=mus, covs=covs)
 
     # 2 clusters (gaussians elliptical)
-    c = .2
-    mus = np.ones((2, ndims))*c; mus[0, 0] *= -1
+    mus = np.zeros((2, ndims));
+    mus[0, 0] = -.3
+    mus[1, 0] = +.3
     cov = np.eye(ndims)
-    cov[0, 0] = .006
-    cov[1, 1] = 1.4
+    cov[0, 0] = .01
     covs = np.array([cov]*2)
     data['2,gaussian,elliptical'] = generate_multivariate_normal(samplesz, ndims,
                                                                ncenters=2,
                                                                mus=mus,covs=covs)
-
+    # d = data['2,gaussian,elliptical']
+    # plt.scatter(d[:, 0], d[:, 1])
+    # plt.savefig('/tmp/out.pdf')
+    # input()
 
     # data['4,iris'] = datasets.load_iris().data
     return data
@@ -324,7 +327,7 @@ def plot_contour_uniform(mus, rs, s, ax, cmap):
         aux = (X-x0)**2 + (Y-y0)**2
         Z[aux <= r2] = 1
 
-    contours = ax.contour(X, Y, Z, levels=1, cmap=cmap)
+    contours = ax.contour(X, Y, Z, levels=1, cmap=cmap, linewidths=1)
     return ax
 
 ##########################################################
@@ -345,7 +348,7 @@ def plot_contour_power(ndims, power, mus, s, ax, cmap):
         Zflat += (1 / (d+epsilon)) ** power
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, cmap=cmap)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
     return ax
 
 ##########################################################
@@ -366,7 +369,7 @@ def plot_contour_exponential(ndims, mus, s, ax, cmap):
         Zflat += np.exp(1 / (d+epsilon))
 
     Z = np.reshape(Zflat, X.shape)
-    contours = ax.contour(X, Y, Z, cmap=cmap)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
     return ax
 ##########################################################
 def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap):
@@ -383,7 +386,7 @@ def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap):
             Z[i, j] += multivariate_normal(coords[cind, :], mus[mind, :],
                                            covs[mind, :, :])
 
-    contours = ax.contour(X, Y, Z, cmap=cmap)
+    contours = ax.contour(X, Y, Z, cmap=cmap, levels=3, linewidths=1)
     return ax
 
 ##########################################################
@@ -517,7 +520,7 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
         extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.pdf'),
+        fig.savefig(pjoin(outdir, prefix + labels[k] + '.png'),
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
@@ -528,7 +531,8 @@ def plot_contours(labels, outdir):
     ncols = 5
     cmap = 'Blues'
 
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5), squeeze=False)
+    figscale = 5
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*figscale, nrows*figscale), squeeze=False)
     # Contour plots
     mu = np.array([[0, 0]])
     r = np.array([.9])
@@ -560,24 +564,32 @@ def plot_contours(labels, outdir):
     covs = np.array([np.eye(ndims) * 0.1] * 2)
     plot_contour_gaussian(ndims, mus, covs, s, ax[1, 3], cmap) # 2 gaussians
 
-    c = .2
-    mus = np.ones((2, ndims))*c; mus[0, 0] *= -1
+    mus = np.zeros((2, ndims));
+    mus[0, 0] = -.3
+    mus[1, 0] = +.3
     cov = np.eye(ndims)
-    cov[0, 0] = .006
-    cov[1, 1] = 1.4
+    cov[0, 0] = .01
     covs = np.array([cov]*2)
     plot_contour_gaussian(ndims, mus, covs, s, ax[1, 4], cmap) # 2 gaussians ellip
 
 
     plt.tight_layout(pad=4)
     plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
-    for k in range(len(ax[:])):
-        i = k // ax.shape[1]
-        j = k  % ax.shape[1]
-        ax[i, j].set_xticks([-1.0, 0, +1.0])
-        ax[i, j].set_yticks([-1.0, 0, +1.0])
+    for i in range(ax[:].shape[0]):
+        for j in range(ax[:].shape[1]):
+            ax[i, j].set_xticks([-1.0, 0, +1.0])
+            ax[i, j].set_yticks([-1.0, 0, +1.0])
+            ax[i, j].set_xticks([])
 
-    export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
+    export_individual_axis(ax, fig, labels, outdir, .0, 'contour_')
+
+    # for i in range(ax[:].shape[0]):
+        # for j in range(ax[:].shape[1]):
+            # ax[i, j].set_yticks([])
+            # ax[i, j].grid(False)
+            # ax[i, j].set_yticklabels([])
+            # ax[i, j].set_xticklabels([])
+    # export_individual_axis(ax, fig, labels, outdir, .0, 'contour_icon_')
 
 ##########################################################
 def hex2rgb(hexcolours, alpha=None):
@@ -620,7 +632,8 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     for k in data.keys():
         rels[k] = {l: [[], []] for l in linkagemeths}
 
-    for _ in range(nrealizations): # Compute relevances
+    for r in range(nrealizations): # Compute relevances
+        info('Realization {:02d}'.format(r))
         data = generate_data(samplesz, ndims)
 
         for j, linkagemeth in enumerate(linkagemeths):
@@ -630,7 +643,14 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 metric = metricarg
 
             for i, distrib in enumerate(data):
-                z = linkage(data[distrib], linkagemeth, metric)
+                try:
+                    z = linkage(data[distrib], linkagemeth, metric)
+                except Exception as e:
+                    print(data[distrib], linkagemeth, metric)
+                    np.save('/tmp/foo.npy', data[distrib])
+                    print(e)
+                    raise(e)
+
                 inc = inconsistent(z)
 
                 clustids, rel = filter_clustering(data[distrib], z, minclustsize,
@@ -671,8 +691,10 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 winner[d] = l
                 minvalue = diffnorms[d][l]
 
-    pd.DataFrame(diffnorms).to_csv(pjoin(outdir, 'results.csv'),
-                                   index_label='linkagemeth')
+    df = pd.DataFrame.from_dict(diffnorms, orient='index')
+    df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
+    df.to_csv(pjoin(outdir, 'results.csv'), sep='|', index_label='distrib')
+
     palette = hex2rgb(palettehex, alpha=.8)
 
     nbins = 10
@@ -765,7 +787,8 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
     ndistribs = len(data.keys())
     nrows = ndistribs
     ncols = nlinkagemeths + 1
-    fig = plt.figure(figsize=(ncols*5, nrows*5))
+    figscale=5
+    fig = plt.figure(figsize=(ncols*figscale, nrows*figscale))
     ax = np.array([[None]*ncols]*nrows)
 
     fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
@@ -951,10 +974,11 @@ def main():
     info('Computing:{}'.format(linkagemeths))
 
     data = generate_data(args.samplesz, args.ndims)
-    generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    generate_dendrogram_single(data, metric, palettehex, args.outdir)
+    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
+    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
     generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
                                    palettehex, args.outdir)
+    return
     plot_contours(list(data.keys()), args.outdir)
     plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
     plot_article_quiver(palettehex, args.outdir)
