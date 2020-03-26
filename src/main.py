@@ -1038,7 +1038,7 @@ def plot_parallel(df, colours, ax, fig):
     ax.spines['bottom'].set_visible(False)
     ax.legend(
         fontsize=15,
-        loc=[.6, .6],
+        loc=[.55, .55],
     )
 
     ax.tick_params(bottom="off")
@@ -1050,14 +1050,15 @@ def plot_parallel(df, colours, ax, fig):
     # axicon.set_yticks([])
 
     trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
-    line = Line2D([0, .95], [-.03, -.03], color='k', transform=trans)
+    line = Line2D([0, .98], [-.02, -.02], color='k', transform=trans)
     fig.lines.append(line)
 
 ##########################################################
 def include_icons(iconpaths, fig):
     for i, iconpath in enumerate(iconpaths):
+        sign = 0.015*(-1) ** i
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.22+i*.074, 0.79, 0.05, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.21+i*.0723, 0.78+sign, 0.08, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
@@ -1080,7 +1081,13 @@ def plot_parallel_all(results, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.1, 0, 1, 1), h_pad=-3)
+    plt.tight_layout(rect=(0.1, 0, 1, .96), h_pad=-2)
+    for i, dim in enumerate(dims):
+        plt.text(-0.2, .5, '{}-D'.format(dim),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize='xx-large',
+                 transform = axs[i, 0].transAxes
+                 )
 
     filenames = [
         'icon_1,uniform,rad0.9.png',
@@ -1098,7 +1105,7 @@ def plot_parallel_all(results, outdir):
 
     include_icons(iconpaths, fig)
 
-    plt.savefig(pjoin(outdir, 'out.pdf'))
+    plt.savefig(pjoin(outdir, 'error_all.pdf'))
 
 ##########################################################
 def count_method_ranking(resultspath, linkagemeths, outdir, linkagemeth='single'):
@@ -1109,16 +1116,36 @@ def count_method_ranking(resultspath, linkagemeths, outdir, linkagemeth='single'
     data = []
     for i, row in df.iterrows():
         values = row[linkagemeths].values
+        # print('values:{}'.format(values))
+        # input()
         sortedidx = np.argsort(values)
-        methrank = sortedidx[methidx]
+        methrank = np.where(sortedidx == methidx)[0][0]
+
+        # print('##########################################################')
+        # print(values)
+        # print('dim:{}'.format(row.dim))
+        # print('i:{}'.format(i))
+        # print('sortedidx:{}'.format(sortedidx))
+        # print('methrank:{}'.format(methrank))
+        # input()
         data.append([row.distrib, row.dim, methrank])
-    methdf = pd.DataFrame(data, columns='distrib,dim,methrank'.split(','))
+
+    methdf = pd.DataFrame(data,
+                          columns='distrib,dim,methrank'.split(','))
+    # print('methdf:{}'.format(methdf))
+    # input()
     ndistribs = len(np.unique(methdf.distrib))
 
     for d in np.unique(methdf.dim):
-        filtered = methdf[(methdf.dim == d) & (methdf.methrank < 3)]
-        print('dim:{}\t{}/{}'.format(d, filtered.shape[0],
-                                     ndistribs))
+        # print(methdf[methdf.dim == d])
+        filtered1 = methdf[methdf.dim == d][:5]
+        filtered1 = filtered1[(filtered1.methrank < 3)]
+
+        filtered2 = methdf[methdf.dim == d][5:]
+        filtered2 = filtered2[(filtered2.methrank < 3)]
+
+        print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 5,
+                                     filtered2.shape[0], 5))
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
