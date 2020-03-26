@@ -136,11 +136,20 @@ def generate_uniform(samplesz, ndims, cs, rs):
         r = rs[i]
         min_ = c - r
         range_ = 2 * r
-        boxsample = 2*ndims*partsz[i]
-        aux = np.random.rand(boxsample, ndims) * range_ + min_
-        dists = cdist(aux, np.array([c]))
-        inds = np.where(dists <= r)[0][:partsz[i]]
-        data[dataind:dataind+partsz[i]] = aux[inds, :]
+
+        cursize = 0
+        aux2 = np.ndarray((0, 2), dtype=float)
+        while True:
+            aux = np.random.rand(partsz[i], ndims) * range_ + min_
+            dists = cdist(aux, np.array([c]))
+            inds = np.where(dists <= r)[0]
+            aux = aux[inds, :]
+            cursize += aux.shape[0]
+            aux2 = np.concatenate((aux2, aux))
+
+            if cursize >= partsz[i]: break
+
+        data[dataind:dataind+partsz[i]] = aux2[:partsz[i]]
         dataind += partsz[i]
 
     return data
@@ -701,6 +710,24 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
     df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
     df.to_csv(pjoin(outdir, 'results.csv'), sep='|', index_label='distrib')
 
+    fh = open(pjoin(outdir, 'raw.csv'), 'w')
+    fh.write('distrib|linkagemeth|realiz|relev1|relev2\n')
+    for d in data.keys():
+        for l in linkagemeths:
+            i = 0
+            rels1 = rels[d][l][0]
+            for r in rels1:
+                fh.write(('{}|{}|{}|{}|0.0\n'.format(d, l, i, r)))
+                i += 1
+
+            rels2 = rels[d][l][1]
+            for r in rels2:
+                fh.write(('{}|{}|{}|0.0|{}\n'.format(d, l, i, r)))
+                i += 1
+    fh.close()
+
+    if ndims > 2: return
+
     palette = hex2rgb(palettehex, alpha=.8)
 
     nbins = 10
@@ -941,18 +968,34 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
     fig, ax = plt.subplots(figsize=(5, 5))
-    origin = np.zeros(2)
-    ax.quiver(origin, origin, [0.595], [1.795], color=palettehex[0], width=.01,
-              angles='xy', scale_units='xy', scale=1,
+    orig = np.zeros(2)
+    v1 = np.array([0.6, 1.8])
+    v2 = np.array([3.0, 0.0])
+    v3 = v2 - v1
+    delta = .01
+
+    ax.quiver(orig[0], orig[1], v1[0], v1[1], color=palettehex[0],
+              width=.01, angles='xy', scale_units='xy', scale=1,
               headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+
+    ax.quiver(orig[0], orig[1]+delta, v2[0]-delta, v2[1], color='#000000',
+              width=.01, angles='xy', scale_units='xy', scale=1,
+              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+
+    ax.quiver(v1[0], v1[1], v3[0]-delta, v3[1]+delta, color=palettehex[1],
+              width=.01, angles='xy', scale_units='xy', scale=1,
+              headwidth=5, headlength=4, headaxislength=3.5, zorder=3,
+              linestyle='-.')
+
     ax.scatter([0.6], [1.8], s=2, c='k')
     plt.text(0.72, 0.9, '(0.6, 1.8)',
              horizontalalignment='center', verticalalignment='center',
              fontsize='large', transform = ax.transAxes)
     ax.set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
     ax.set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
-    ax.set_xlim(0, 1)
+    ax.set_xlim(0, 3.5)
     ax.set_ylim(0, 2)
+
     plt.savefig(pjoin(outdir, 'arrow_dummy.pdf'))
 
 ##########################################################
@@ -961,6 +1004,7 @@ def main():
     parser.add_argument('--ndims', type=int, default=2,
                         help='Dimensionality of the space')
     parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
+    parser.add_argument('--nrealizations', type=int, default=400, help='Sample size')
     parser.add_argument('--outdir', default='/tmp/', help='Output directory')
     args = parser.parse_args()
 
@@ -971,22 +1015,21 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(0)
 
-    nrealizations = 400
-
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     # palettehex = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33']
-    info('Computing:{}'.format(linkagemeths))
+    info('Linkage methods:{}'.format(linkagemeths))
 
     data = generate_data(args.samplesz, args.ndims)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    # generate_relevance_distrib_all(data, metric, linkagemeths, nrealizations,
-                                   # palettehex, args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   args.nrealizations, palettehex,
+                                   args.outdir)
     # return
-    plot_contours(list(data.keys()), args.outdir)
-    plot_contours(list(data.keys()), args.outdir, True)
+    # plot_contours(list(data.keys()), args.outdir)
+    # plot_contours(list(data.keys()), args.outdir, True)
     # plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     # test_inconsistency()
