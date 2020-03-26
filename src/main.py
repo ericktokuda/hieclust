@@ -13,6 +13,8 @@ import numpy as np
 import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
 import matplotlib.cm as cm
+from matplotlib.transforms import blended_transform_factory
+from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -25,6 +27,7 @@ from scipy.spatial.distance import cdist
 import pandas as pd
 
 from sklearn import datasets
+import imageio
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -967,7 +970,7 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
-    fig, ax = plt.subplots(figsize=(5, 5))
+    fig, ax = plt.subplots(figsize=(4, 3.5))
     orig = np.zeros(2)
     v1 = np.array([0.6, 1.8])
     v2 = np.array([3.0, 0.0])
@@ -975,29 +978,147 @@ def plot_article_quiver(palettehex, outdir):
     delta = .01
 
     ax.quiver(orig[0], orig[1], v1[0], v1[1], color=palettehex[0],
-              width=.01, angles='xy', scale_units='xy', scale=1,
-              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+              width=.015, angles='xy', scale_units='xy', scale=1,
+              headwidth=4, headlength=4, headaxislength=3, zorder=3)
 
-    ax.quiver(orig[0], orig[1]+delta, v2[0]-delta, v2[1], color='#000000',
-              width=.01, angles='xy', scale_units='xy', scale=1,
-              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+    ax.quiver(orig[0], orig[1]+delta, v2[0]-delta, v2[1],
+              color='#000000', alpha=.7,
+              width=.015, angles='xy', scale_units='xy', scale=1,
+              headwidth=4, headlength=4, headaxislength=3, zorder=3)
 
-    ax.quiver(v1[0], v1[1], v3[0]-delta, v3[1]+delta, color=palettehex[1],
-              width=.01, angles='xy', scale_units='xy', scale=1,
-              headwidth=5, headlength=4, headaxislength=3.5, zorder=3,
-              linestyle='-.')
+    ax.quiver(v1[0] + delta, v1[1] - delta, v3[0]-delta, v3[1]+delta,
+              color='#999999', alpha=1.0,
+              width=.007, angles='xy', scale_units='xy', scale=1,
+              headwidth=5, headlength=8, headaxislength=5, zorder=3)
 
     ax.scatter([0.6], [1.8], s=2, c='k')
-    plt.text(0.72, 0.9, '(0.6, 1.8)',
+    # plt.text(0.32, 0.9, '(0.6, 1.8)',
+             # horizontalalignment='center', verticalalignment='center',
+             # fontsize='large', transform = ax.transAxes)
+    plt.text(0.16, 0.47, 'r',
              horizontalalignment='center', verticalalignment='center',
-             fontsize='large', transform = ax.transAxes)
-    ax.set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
-    ax.set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
+             color=palettehex[0], style='italic',
+             fontsize='x-large', transform = ax.transAxes)
+    plt.text(0.45, 0.08, 'g',
+             horizontalalignment='center', verticalalignment='center', style='italic',
+             fontsize='x-large', transform = ax.transAxes)
+    plt.text(0.75, 0.3, 'e',
+             horizontalalignment='center', verticalalignment='center', style='italic',
+             color='#666666',
+             fontsize='x-large', transform = ax.transAxes)
+    ax.set_ylabel('Relevance of 2 clusters', fontsize='medium')
+    ax.set_xlabel('Relevance of 1 cluster', fontsize='medium')
     ax.set_xlim(0, 3.5)
     ax.set_ylim(0, 2)
+    plt.tight_layout(pad=1)
 
     plt.savefig(pjoin(outdir, 'arrow_dummy.pdf'))
 
+##########################################################
+def plot_parallel(df, colours, ax, fig):
+    dim = df.dim[0]
+    df = df.T.reset_index()
+    df = df[df['index'] != 'dim']
+
+    ax = pd.plotting.parallel_coordinates(
+        df, 'index',
+        axvlines_kwds={'visible':True, 'color':np.ones(3)*.6,
+                       'linewidth':4, 'alpha': 0.9, },
+        ax=ax, linewidth=4, alpha=0.9,
+        color = colours,
+    )
+    ax.yaxis.grid(False)
+    ax.xaxis.set_ticks_position('top')
+    ax.set_yticks([0, 100, 200, 300, 400, 500])
+    ax.set_xticklabels([])
+    ax.set_xlim(-.5, 10)
+    ax.set_ylabel('Accumulated error', fontsize=15)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.legend(
+        fontsize=15,
+        loc=[.6, .6],
+    )
+
+    ax.tick_params(bottom="off")
+    ax.tick_params(axis='x', length=0)
+
+    # axicon = fig.add_axes([0.4,0.4,0.1,0.1])
+    # axicon.imshow(np.random.rand(100,100))
+    # axicon.set_xticks([])
+    # axicon.set_yticks([])
+
+    trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
+    line = Line2D([0, .95], [-.03, -.03], color='k', transform=trans)
+    fig.lines.append(line)
+
+##########################################################
+def include_icons(iconpaths, fig):
+    for i, iconpath in enumerate(iconpaths):
+        im = imageio.imread(iconpath)
+        newax = fig.add_axes([0.22+i*.074, 0.79, 0.05, 0.2], anchor='NE', zorder=-1)
+        newax.imshow(im, aspect='equal')
+        newax.axis('off')
+
+##########################################################
+def plot_parallel_all(results, outdir):
+    if not os.path.isdir(outdir): os.mkdir(outdir)
+
+    colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
+    df = pd.read_csv(results, sep='|')
+    dims = np.unique(df.dim)
+
+    figscale = 5
+    fig, axs = plt.subplots(len(dims), 1, figsize=(1.5*figscale, len(dims)*figscale),
+                            squeeze=False)
+
+    for i, dim in enumerate(dims):
+        slice = df[df.dim == dim]
+        # print('slice:{}'.format(slice))
+        slice = slice.set_index('distrib')
+        plot_parallel(slice, colours, axs[i, 0], fig)
+
+    # plt.tight_layout(rect=(0.1, 0, 1, 1))
+    plt.tight_layout(rect=(0.1, 0, 1, 1), h_pad=-3)
+
+    filenames = [
+        'icon_1,uniform,rad0.9.png',
+        'icon_1,linear.png',
+        'icon_1,quadratic.png',
+        'icon_1,gaussian.png',
+        'icon_1,exponential.png',
+        'icon_2,uniform,rad0.9.png',
+        'icon_2,uniform,rad0.5.png',
+        'icon_2,gaussian,std0.2.png',
+        'icon_2,gaussian,std0.1.png',
+        'icon_2,gaussian,elliptical.png',
+    ]
+    iconpaths = [ pjoin('/tmp/', f) for f in filenames ]
+
+    include_icons(iconpaths, fig)
+
+    plt.savefig(pjoin(outdir, 'out.pdf'))
+
+##########################################################
+def count_method_ranking(resultspath, linkagemeths, outdir, linkagemeth='single'):
+    print('linkagemeth:{}'.format(linkagemeth))
+    df = pd.read_csv(resultspath, sep='|')
+    methidx = np.where(np.array(linkagemeths) == linkagemeth)[0][0]
+
+    data = []
+    for i, row in df.iterrows():
+        values = row[linkagemeths].values
+        sortedidx = np.argsort(values)
+        methrank = sortedidx[methidx]
+        data.append([row.distrib, row.dim, methrank])
+    methdf = pd.DataFrame(data, columns='distrib,dim,methrank'.split(','))
+    ndistribs = len(np.unique(methdf.distrib))
+
+    for d in np.unique(methdf.dim):
+        filtered = methdf[(methdf.dim == d) & (methdf.methrank < 3)]
+        print('dim:{}\t{}/{}'.format(d, filtered.shape[0],
+                                     ndistribs))
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1024,14 +1145,19 @@ def main():
     data = generate_data(args.samplesz, args.ndims)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   args.nrealizations, palettehex,
-                                   args.outdir)
+    # generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   # args.nrealizations, palettehex,
+                                   # args.outdir)
     # return
     # plot_contours(list(data.keys()), args.outdir)
     # plot_contours(list(data.keys()), args.outdir, True)
     # plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
+    resultspath = '/home/dufresne/20200326-hieclust.csv'
+
+    # plot_parallel_all(resultspath, args.outdir)
+    count_method_ranking(resultspath, linkagemeths, args.outdir, 'single')
+    count_method_ranking(resultspath, linkagemeths, args.outdir, 'ward')
     # test_inconsistency()
 
 ##########################################################
