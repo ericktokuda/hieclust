@@ -138,7 +138,7 @@ def generate_uniform(samplesz, ndims, cs, rs):
         range_ = 2 * r
 
         cursize = 0
-        aux2 = np.ndarray((0, 2), dtype=float)
+        aux2 = np.ndarray((0, ndims), dtype=float)
         while True:
             aux = np.random.rand(partsz[i], ndims) * range_ + min_
             dists = cdist(aux, np.array([c]))
