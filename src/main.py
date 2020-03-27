@@ -28,6 +28,7 @@ import pandas as pd
 
 from sklearn import datasets
 import imageio
+import scipy
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -1146,6 +1147,39 @@ def count_method_ranking(resultspath, linkagemeths, outdir, linkagemeth='single'
 
         print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 5,
                                      filtered2.shape[0], 5))
+
+##########################################################
+def scatter_pairwise(resultspath, linkagemeths, outdir):
+    df = pd.read_csv(resultspath, sep='|')
+
+    nmeths = len(linkagemeths)
+    nplots = int(scipy.special.comb(nmeths, 2))
+
+    nrows = nplots;  ncols = 1
+    figscale = 4
+    fig, axs = plt.subplots(nrows, ncols, squeeze=False,
+                            figsize=(ncols*figscale*1.2, nrows*figscale))
+
+    dims = np.unique(df.dim)
+
+    k = 0
+    for i in range(nmeths-1):
+        m1 = linkagemeths[i]
+        for j in range(i+1, nmeths):
+            ax = axs[k, 0]
+            m2 = linkagemeths[j]
+
+            for dim in dims:
+                df2 = df[df.dim == dim]
+                ax.scatter(df2[m1], df2[m2], label=str(dim))
+            ax.legend(title='Dimension')
+            ax.set_xlabel(m1)
+            ax.set_ylabel(m2)
+            k += 1
+
+    plt.tight_layout(pad=1, h_pad=3)
+    plt.savefig(pjoin(outdir, 'out.pdf'))
+
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1153,6 +1187,8 @@ def main():
                         help='Dimensionality of the space')
     parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
     parser.add_argument('--nrealizations', type=int, default=400, help='Sample size')
+    parser.add_argument('--resultspath', default='/tmp/results.csv',
+                        help='all results in csv format')
     parser.add_argument('--outdir', default='/tmp/', help='Output directory')
     args = parser.parse_args()
 
@@ -1180,11 +1216,12 @@ def main():
     # plot_contours(list(data.keys()), args.outdir, True)
     # plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
-    resultspath = '/home/dufresne/20200326-hieclust.csv'
+    # resultspath = 'data/20200326-hieclust.csv'
 
+    # plot_parallel_all(args.resultspath, args.outdir)
+    # count_method_ranking(args.resultspath, linkagemeths, args.outdir, 'single')
+    scatter_pairwise(args.resultspath, linkagemeths, args.outdir)
     # plot_parallel_all(resultspath, args.outdir)
-    count_method_ranking(resultspath, linkagemeths, args.outdir, 'single')
-    count_method_ranking(resultspath, linkagemeths, args.outdir, 'ward')
     # test_inconsistency()
 
 ##########################################################
