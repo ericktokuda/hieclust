@@ -119,126 +119,96 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
     return colors[:n]
 
 ##########################################################
-# def generate_uniform(samplesz, ndims):
-    # xlist = np.linspace(0, 1, samplesz)
-    # ylist = np.linspace(0, 1, samplesz)
-    # # pdf = np.ones((samplesz, samplesz, 3))
-    # # pdf[:,:,0], pdf[:,:,1] = np.meshgrid(xlist, ylist)
-    # # pdf[:, :2] = np.meshgrid(xlist, ylist)
-    # return np.random.rand(samplesz, ndims), pdf
+def get_points_inside_circle(x, c0, r):
+    dists = cdist(x, [c0])
+    inds = np.where(dists <= r)[0]
+    inside = x[inds, :]
+    return inside
 
 ##########################################################
-def generate_uniform(samplesz, ndims, cs, rs):
-    nrows = samplesz
-    data = np.zeros((nrows, ndims))
-    pdf = np.zeros((nrows, ndims, 3))
-    partsz = get_partition_sizes(samplesz, rs.shape[0])
+def get_random_partitions(x, npartitions, partitionsz):
+    idx = np.random.randint(x.shape[0], size=partitionsz)
+    counts = np.zeros(npartitions, dtype=int)
 
-    dataind = 0
-    for i in range(len(rs)):
-        c = cs[i, :]
-        r = rs[i]
-        min_ = c - r
-        range_ = 2 * r
+    for i in range(npartitions):
+        clustidx = i*partitionsz
+        counts[i] = np.sum((idx >= clustidx) & (idx < clustidx+partitionsz))
 
-        cursize = 0
-        aux2 = np.ndarray((0, ndims), dtype=float)
-        while True:
-            aux = np.random.rand(partsz[i], ndims) * range_ + min_
-            dists = cdist(aux, np.array([c]))
-            inds = np.where(dists <= r)[0]
-            aux = aux[inds, :]
-            cursize += aux.shape[0]
-            aux2 = np.concatenate((aux2, aux))
-
-            if cursize >= partsz[i]: break
-
-        data[dataind:dataind+partsz[i]] = aux2[:partsz[i]]
-        dataind += partsz[i]
-
-    return data
+    return x[sorted(idx)], counts
 
 ##########################################################
-def get_partition_sizes(samplesz, npartitions):
-    truncsz = samplesz // npartitions
-    partsz = [truncsz] * npartitions
-    diff = samplesz - (truncsz*npartitions)
-    partsz[-1] += diff
-    return np.array(partsz)
+def generate_uniform(samplesz, ndims, mus, rads):
+    ncenters = len(mus)
+    nrows = samplesz * ncenters
 
-##########################################################
-def generate_multivariate_normal(samplesz, ndims, ncenters, mus=[], covs=[]):
-    x = np.ndarray((samplesz, ndims), dtype=float)
-    partsz = get_partition_sizes(samplesz, ncenters)
+    x = np.zeros((nrows, ndims))
 
-    if len(mus) == 0:
-        mus = np.random.rand(ncenters, ndims)
-        covs = np.array([np.eye(ndims)] * ncenters)
-
-    ind = 0
     for i in range(ncenters):
-        mu = mus[i, :]
+        min_ = mus[i] - rads[i]
+        range_ = 2 * rads[i]
+
+        aux = np.ndarray((0, ndims), dtype=float)
+        while aux.shape[0] < samplesz:
+            aux2 = np.random.rand(5*samplesz, ndims) * range_ + min_
+            aux2 = get_points_inside_circle(aux2, mus[i], rads[i])
+            aux = np.concatenate((aux, aux2))
+
+        x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
+
+    return get_random_partitions(x, ncenters, samplesz)
+
+##########################################################
+def generate_multivariate_normal(samplesz, ndims, mus, covs=[]):
+    ncenters = len(mus)
+    x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
+
+    for i in range(ncenters):
         cov = covs[i, :, :]
-        x[ind:ind+partsz[i]] = np.random.multivariate_normal(mu, cov, size=partsz[i])
-        ind += partsz[i]
-    return x
+        # print('cov:{}'.format(cov))
+
+        aux = np.random.multivariate_normal(mus[i], cov, size=samplesz)
+        # aux = get_points_inside_circle(aux, c, rs[i])
+        x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
+
+    return get_random_partitions(x, ncenters, samplesz)
 
 ##########################################################
 def generate_exponential(samplesz, ndims, mus=[]):
-    x = np.ndarray((samplesz, ndims), dtype=float)
-
     ncenters = len(mus)
+    x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
+
     if len(mus) == 0:
         mus = np.random.rand(1, 2)
         cov = np.eye(2)
         ncenters = 1
 
-    partsz = get_partition_sizes(samplesz, ncenters)
-
-    ind = 0
     for i in range(ncenters):
-        mu = mus[i]
-        sz = partsz[i]
-        xs = np.random.exponential(size=sz)
-        ys = np.random.exponential(size=sz)
-        xs[np.random.rand(sz) > .5] *= -1
-        ys[np.random.rand(sz) > .5] *= -1
-        x[ind:ind+sz, 0] = xs[:sz] + mu[0]
-        x[ind:ind+sz, 1] = ys[:sz] + mu[1]
-        ind += sz
-    return x
+        ind = i*samplesz
+
+        aux = np.random.exponential(size=(samplesz, ndims))
+        aux *= random_sign((samplesz, ndims))
+        # aux = get_points_inside_circle(aux, mu, 1)
+        x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
+
+    return get_random_partitions(x, ncenters, samplesz)
 
 ##########################################################
-def generate_power(samplesz, ndims, power, mus=[]):
-    x = np.ndarray((samplesz, ndims), dtype=float)
+def random_sign(sampleshape):
+    return (np.random.rand(*sampleshape) > .5).astype(int)*2 - 1
 
+##########################################################
+def generate_power(samplesz, ndims, power, mus, rads):
     ncenters = len(mus)
-    if len(mus) == 0:
-        mus = np.random.rand(1, 2)
-        cov = np.eye(2)
-        ncenters = 1
+    x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
 
-    partsz = get_partition_sizes(samplesz, ncenters)
-
-    ind = 0
     for i in range(ncenters):
-        mu = mus[i]
-        sz = partsz[i]
-        xs = 1 - np.random.power(a=power+1, size=sz)
-        ys = 1 - np.random.power(a=power+1, size=sz)
-        xs[np.random.rand(sz) > .5] *= -1
-        ys[np.random.rand(sz) > .5] *= -1
-        x[ind:ind+sz, 0] = xs[:sz] + mu[0]
-        x[ind:ind+sz, 1] = ys[:sz] + mu[1]
-        ind += sz
-    return x
+        aux = rads[i] * (1 - np.random.power(a=power+1, size=(samplesz, ndims)))
+        aux *= random_sign((samplesz, ndims))
+        # aux = get_points_inside_circle(aux, mu, 1)
+        x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
 
-##########################################################
-def plot_scatter(x, ax, ndims, coloursarg=None):
-    if ndims == 3:
-        ax.scatter(x[:, 0], x[:, 1], x[:, 2])
-    else:
-        ax.scatter(x[:,0], x[:,1], c=coloursarg)
+
+    return get_random_partitions(x, ncenters, samplesz)
 
 ##########################################################
 def generate_data(samplesz, ndims):
@@ -253,74 +223,53 @@ def generate_data(samplesz, ndims):
 
     info('Generating data...')
     data = {}
-
-    # fig, ax = plt.subplots(2)
-    # mus = np.zeros((1, ndims))
-    # ax[0] = plot_contour_power(samplesz, ndims, 1, mus, ax[0])
-    # ax[1] = plot_contour_power(samplesz, ndims, 5, mus, ax[1])
-    # plt.show()
+    partsz = {}
 
     mu = np.zeros((1, ndims))
-    r = np.array([.9])
-    data['1,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mu, r)
+
+    k = '1,uniform'
+    r = np.array([6])
+    data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
  
-    # 1 cluster (linear)
-    mus = np.zeros((1, ndims))
-    data['1,linear'] = generate_power(samplesz, ndims, power=1, mus=mus)
+    k = '1,quadratic'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1]))
 
-    # 1 cluster (power)
-    mus = np.zeros((1, ndims))
-    data['1,quadratic'] = generate_power(samplesz, ndims, power=2, mus=mus)
-
-    # 1 cluster (gaussian)
-    mus = np.zeros((1, ndims))
-    covs = np.array([np.eye(ndims) * 0.1])
-    data['1,gaussian'] = generate_multivariate_normal(samplesz, ndims, ncenters=1,
-                                                      mus=mus, covs=covs)
-
-    # 1 cluster (exponential)
-    mus = np.zeros((1, ndims))
-    data['1,exponential'] = generate_exponential(samplesz, ndims, mus=mus)
-
-    # 2 clusters (uniform)
-    c = 0.7
-    mus = np.ones((2, ndims))*c; mus[1, :] *= -1
-    rs = np.ones(2) * .9
-    data['2,uniform,rad0.9'] = generate_uniform(samplesz, ndims, mus, rs)
-
-    # 2 clusters (uniform)
-    rs = np.ones(2) * .5
-    data['2,uniform,rad0.5'] = generate_uniform(samplesz, ndims, mus, rs)
+    k = '1,gaussian'
+    cov = np.array([np.eye(ndims)])
+    data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mu, cov)
 
 
-    # 2 clusters (gaussians)
-    covs = np.array([np.eye(ndims) * 0.2] * 2)
-    data['2,gaussian,std0.2'] = generate_multivariate_normal(samplesz, ndims,
-                                                             ncenters=2,
-                                                             mus=mus, covs=covs)
-    # 2 clusters (gaussians)
-    covs = np.array([np.eye(ndims) * 0.1] * 2)
-    data['2,gaussian,std0.1'] = generate_multivariate_normal(samplesz, ndims,
-                                                             ncenters=2,
-                                                             mus=mus, covs=covs)
+    k = '1,exponential'
+    data[k], partsz[k] = generate_exponential(samplesz, ndims, mu)
 
-    # 2 clusters (gaussians elliptical)
-    mus = np.zeros((2, ndims));
-    mus[0, 0] = -.3
-    mus[1, 0] = +.3
-    cov = np.eye(ndims)
-    cov[0, 0] = .01
-    covs = np.array([cov]*2)
-    data['2,gaussian,elliptical'] = generate_multivariate_normal(samplesz, ndims,
-                                                               ncenters=2,
-                                                               mus=mus,covs=covs)
-    # d = data['2,gaussian,elliptical']
-    # plt.scatter(d[:, 0], d[:, 1])
-    # plt.savefig('/tmp/out.pdf')
-    # input()
+    mus = np.ones((2, ndims)) * 2.5
+    mus[1, :] *= -1
+    rads = np.ones(2)
 
-    # data['4,iris'] = datasets.load_iris().data
+    k = '2,uniform'
+    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*3.5)
+
+    k = '2,quadratic'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*4.5)
+
+    k = '2,gaussian'
+    covs = np.array([np.eye(ndims) * 2.4] * 2)
+    data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+
+    k = '2,exponential'
+    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus)
+
     return data
+    
+##########################################################
+def plot_points(data, outdir):
+    figscale = 4
+    fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
+                figsize=(len(data.keys())*figscale, 1*figscale))
+    for i, k in enumerate(data):
+        axs[0, i].scatter(data[k][:, 0], data[k][:, 1])
+        axs[0, i].set_title(k)
+    plt.savefig(pjoin(outdir, 'points_all.pdf'))
 
 ##########################################################
 def mesh_xy(min, max, s):
@@ -533,7 +482,7 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
         extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.png'),
+        fig.savefig(pjoin(outdir, prefix + labels[k] + '.pdf'),
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
@@ -844,7 +793,9 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
 
     for i, k in enumerate(data):
         nclusters = int(k.split(',')[0])
-        plot_scatter(data[k], ax[i, 0], ndims, palette[1])
+        print('k:{}'.format(k))
+        # plot_scatter(data[k], ax[i, 0], palette[1])
+        axs[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
 
         for j, l in enumerate(linkagemeths):
             if l == 'centroid' or l == 'median' or l == 'ward':
@@ -878,12 +829,25 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
     plt.savefig(pjoin(outdir, 'dendrogram_all_{}d_{}.pdf'.format(ndims, samplesz)))
 
 ##########################################################
-def plot_article_uniform_distribs_scale(data, palette, outdir):
-    info('Plotting uniform bimodal distrib...')
-    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
-    k = '2,uniform,rad0.9'
+def plot_article_uniform_distribs_scale(palette, outdir):
+    samplesz = 250
     ndims = 2
-    plot_scatter(data[k], ax[0, 0], ndims, palette[1])
+
+    info('Plotting uniform bimodal distrib...')
+
+    mus = np.ones((2, ndims))*.7
+    mus[1, :] *= -1
+    rs = np.ones(2) * .9
+    coords2 = np.ndarray((0, 2))
+    coords1 = generate_uniform(samplesz, ndims, mus, rs)
+    # coords2 = generate_uniform(20, ndims, np.array([[.6, .4], [1, .6]]),
+                               # np.ones(2) * .2)
+    coords = np.concatenate((coords1, coords2))
+    # print('coords.shape:{}'.format(coords.shape))
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
+    # plot_scatter(coords, ax[0, 0], palette[1])
+    axs[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
 
     mycolour = 'k'
     c = (0, 0)
@@ -904,11 +868,11 @@ def plot_article_uniform_distribs_scale(data, palette, outdir):
     noisex = np.random.rand(nnoise) * 4 + (-2)
     noisey = np.random.rand(nnoise) * 4 + (-2)
     ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
-    ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
+    ax[0, 0].scatter([0], [0], c=palette[1]) # noise points
     ax[0, 0].set_xticks([-2.0, -1.0, 0, +1.0, +2.0])
     ax[0, 0].set_yticks([-2.0, -1.0, 0, +1.0, +2.0])
 
-    export_individual_axis(ax, fig, [k], outdir, 0.3, 'points_')
+    export_individual_axis(ax, fig, ['2,uniform,rad0.9'], outdir, 0.3, 'points_')
 
 ##########################################################
 def generate_dendrogram_single(data, metric, palettehex, outdir):
@@ -946,7 +910,8 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
         clustids, rel = filter_clustering(data[k], z, minclustsize,
                                                 minnclusters)
         colours = plot_dendrogram(z, 'single', ax[i, 1], rel, clustids, palettehex)
-        plot_scatter(data[k], ax[i, 0], ndims, colours)
+        # plot_scatter(data[k], ax[i, 0], colours)
+        axs[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
 
         if len(clustids) == 1:
             text = 'rel: ({:.3f}, 0)'.format(rel)
@@ -1190,6 +1155,7 @@ def main():
     parser.add_argument('--resultspath', default='/tmp/results.csv',
                         help='all results in csv format')
     parser.add_argument('--outdir', default='/tmp/', help='Output directory')
+    parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
@@ -1197,7 +1163,8 @@ def main():
 
     if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
     np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(0)
+    # np.random.seed(0)
+    np.random.seed(args.seed)
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
@@ -1206,21 +1173,22 @@ def main():
     info('Linkage methods:{}'.format(linkagemeths))
 
     data = generate_data(args.samplesz, args.ndims)
+    plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    # generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   # args.nrealizations, palettehex,
-                                   # args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   args.nrealizations, palettehex,
+                                   args.outdir)
     # return
     # plot_contours(list(data.keys()), args.outdir)
     # plot_contours(list(data.keys()), args.outdir, True)
-    # plot_article_uniform_distribs_scale(data, palettehex, args.outdir)
+    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     # resultspath = 'data/20200326-hieclust.csv'
 
     # plot_parallel_all(args.resultspath, args.outdir)
     # count_method_ranking(args.resultspath, linkagemeths, args.outdir, 'single')
-    scatter_pairwise(args.resultspath, linkagemeths, args.outdir)
+    # scatter_pairwise(args.resultspath, linkagemeths, args.outdir)
     # plot_parallel_all(resultspath, args.outdir)
     # test_inconsistency()
 
