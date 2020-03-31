@@ -173,19 +173,12 @@ def generate_multivariate_normal(samplesz, ndims, mus, covs=[]):
     return get_random_partitions(x, ncenters, samplesz)
 
 ##########################################################
-def generate_exponential(samplesz, ndims, mus=[]):
+def generate_exponential(samplesz, ndims, mus, rads):
     ncenters = len(mus)
     x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
 
-    if len(mus) == 0:
-        mus = np.random.rand(1, 2)
-        cov = np.eye(2)
-        ncenters = 1
-
     for i in range(ncenters):
-        ind = i*samplesz
-
-        aux = np.random.exponential(size=(samplesz, ndims))
+        aux = np.random.exponential(rads[i], size=(samplesz, ndims))
         aux *= random_sign((samplesz, ndims))
         # aux = get_points_inside_circle(aux, mu, 1)
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
@@ -228,36 +221,48 @@ def generate_data(samplesz, ndims):
     mu = np.zeros((1, ndims))
 
     k = '1,uniform'
-    r = np.array([6])
+    r = np.array([1])
     data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
  
     k = '1,quadratic'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1]))
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1)
 
     k = '1,gaussian'
-    cov = np.array([np.eye(ndims)])
+    cov = np.array([np.eye(ndims)])*.3
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mu, cov)
 
-
     k = '1,exponential'
-    data[k], partsz[k] = generate_exponential(samplesz, ndims, mu)
+    data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
 
-    mus = np.ones((2, ndims)) * 2.5
+    mus = np.ones((2, ndims)) * .4 
     mus[1, :] *= -1
     rads = np.ones(2)
 
-    k = '2,uniform'
-    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*3.5)
+    k = '2,uniform,0.5'
+    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.5)
 
-    k = '2,quadratic'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*4.5)
+    k = '2,quadratic,0.6'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.6)
 
-    k = '2,gaussian'
-    covs = np.array([np.eye(ndims) * 2.4] * 2)
+    k = '2,gaussian,0.03'
+    covs = np.array([np.eye(ndims) * .03] * 2)
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
 
-    k = '2,exponential'
-    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus)
+    k = '2,exponential,0.1'
+    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.1)
+
+    k = '2,uniform,0.55'
+    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.55)
+
+    k = '2,quadratic,0.7'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.7)
+
+    k = '2,gaussian,0.05'
+    covs = np.array([np.eye(ndims) * .05] * 2)
+    data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+
+    k = '2,exponential,0.2'
+    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.2)
 
     return data
     
@@ -1176,9 +1181,9 @@ def main():
     plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   args.nrealizations, palettehex,
-                                   args.outdir)
+    # generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   # args.nrealizations, palettehex,
+                                   # args.outdir)
     # return
     # plot_contours(list(data.keys()), args.outdir)
     # plot_contours(list(data.keys()), args.outdir, True)
