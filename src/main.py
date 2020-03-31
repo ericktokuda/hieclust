@@ -24,6 +24,7 @@ from scipy.spatial.distance import pdist
 from scipy.cluster.hierarchy import inconsistent
 import scipy.stats as stats
 from scipy.spatial.distance import cdist
+from scipy.stats import pearsonr
 import pandas as pd
 
 from sklearn import datasets
@@ -224,12 +225,12 @@ def generate_data(samplesz, ndims):
     r = np.array([1])
     data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
  
-    k = '1,quadratic'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1)
-
     k = '1,gaussian'
     cov = np.array([np.eye(ndims)])*.3
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mu, cov)
+
+    k = '1,quadratic'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1)
 
     k = '1,exponential'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
@@ -241,12 +242,12 @@ def generate_data(samplesz, ndims):
     k = '2,uniform,0.5'
     data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.5)
 
-    k = '2,quadratic,0.6'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.6)
-
     k = '2,gaussian,0.03'
     covs = np.array([np.eye(ndims) * .03] * 2)
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+
+    k = '2,quadratic,0.6'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.6)
 
     k = '2,exponential,0.1'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.1)
@@ -254,12 +255,12 @@ def generate_data(samplesz, ndims):
     k = '2,uniform,0.55'
     data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.55)
 
-    k = '2,quadratic,0.7'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.7)
-
     k = '2,gaussian,0.05'
     covs = np.array([np.eye(ndims) * .05] * 2)
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+
+    k = '2,quadratic,0.7'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.7)
 
     k = '2,exponential,0.2'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.2)
@@ -298,18 +299,18 @@ def plot_contour_uniform(mus, rs, s, ax, cmap, linewidth):
     return ax
 
 ##########################################################
-def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth):
+def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon):
     X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
-    epsilon = 1.2
+    # epsilon = .6
 
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
 
     for i in range(mus.shape[0]):
-        mu = mus[0, :]
+        mu = mus[i, :]
         d = cdist(coords, np.array([mu])).flatten()
         # Zflat += -d**power
         Zflat += (1 / (d+epsilon)) ** power
@@ -330,7 +331,7 @@ def plot_contour_exponential(ndims, mus, s, ax, cmap, linewidth):
             coords[i*s + j, :] = np.array([X[i, j], Y[i, j]])
 
     for i in range(mus.shape[0]):
-        mu = mus[0, :]
+        mu = mus[i, :]
         d = cdist(coords, np.array([mu])).flatten()
         # Zflat += -np.exp(d)
         Zflat += np.exp(1 / (d+epsilon))
@@ -487,7 +488,7 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
         extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.pdf'),
+        fig.savefig(pjoin(outdir, prefix + labels[k] + '.png'),
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
@@ -495,7 +496,7 @@ def plot_contours(labels, outdir, icons=False):
     ndims = 2
     s = 500
     nrows = 2
-    ncols = 5
+    ncols = 4
     cmap = 'Blues'
 
     if icons:
@@ -512,42 +513,32 @@ def plot_contours(labels, outdir, icons=False):
     plot_contour_uniform(mu, r, s, ax[0, 0], cmap, linewidth) # 1 uniform
  
     mus = np.zeros((1, ndims))
-
-    plot_contour_power(ndims, 1, mus, s, ax[0, 1], cmap, linewidth) # 1 linear
-
-    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap, linewidth) # 1 power
-
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
-    plot_contour_gaussian(ndims, mus, covs, s, ax[0, 3], cmap, linewidth)
+    plot_contour_gaussian(ndims, mus, covs, s, ax[0, 1], cmap, linewidth)
+
+    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap, linewidth, 1.4) # 1 quadratic
 
     mus = np.zeros((1, ndims))
-    plot_contour_exponential(ndims, mus, s, ax[0, 4], cmap, linewidth) # 1 exponential
+    plot_contour_exponential(ndims, mus, s, ax[0, 3], cmap, linewidth) # 1 exponential
 
-    c = 0.7
+    c = 0.4
     mus = np.ones((2, ndims))*c; mus[1, :] *= -1
-    rs = np.ones(2) * .9
+    rs = np.ones(2) * .4
     plot_contour_uniform(mus, rs, s, ax[1, 0], cmap, linewidth) # 2 uniform
 
-    rs = np.ones(2) * .5
-    plot_contour_uniform(mus, rs, s, ax[1, 1], cmap, linewidth) # 2 uniform
-
-    covs = np.array([np.eye(ndims) * 0.2] * 2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 2], cmap, linewidth) # 2 gaussians
 
     covs = np.array([np.eye(ndims) * 0.1] * 2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 3], cmap, linewidth) # 2 gaussians
+    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 1], cmap, linewidth) # 2 gaussians
 
-    mus = np.zeros((2, ndims));
-    mus[0, 0] = -.3
-    mus[1, 0] = +.3
-    cov = np.eye(ndims)
-    cov[0, 0] = .01
-    covs = np.array([cov]*2)
-    plot_contour_gaussian(ndims, mus, covs, s, ax[1, 4], cmap, linewidth) # 2 gaussians ellip
+    plot_contour_power(ndims, 2, mus, s, ax[1, 2], cmap, linewidth, .5) # 2 quadratic
+
+    # mus = np.zeros((1, ndims))
+    plot_contour_exponential(ndims, mus, s, ax[1, 3], cmap, linewidth) # 2 exponential
 
 
     plt.tight_layout(pad=4)
     plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
+
     for i in range(ax[:].shape[0]):
         for j in range(ax[:].shape[1]):
             if icons:
@@ -558,11 +549,12 @@ def plot_contours(labels, outdir, icons=False):
             else:
                 ax[i, j].set_xticks([-1.0, 0, +1.0])
                 ax[i, j].set_yticks([-1.0, 0, +1.0])
-                ax[i, j].set_xticks([])
+                # ax[i, j].set_xticks([])
 
-    if icons: pref = 'icon_'
-    else: pref = 'contour_'
-    export_individual_axis(ax, fig, labels, outdir, .0, pref)
+    if icons:
+        export_individual_axis(ax, fig, labels, outdir, 0, 'icon_')
+    else:
+        export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
 def hex2rgb(hexcolours, alpha=None):
@@ -800,7 +792,7 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
         nclusters = int(k.split(',')[0])
         print('k:{}'.format(k))
         # plot_scatter(data[k], ax[i, 0], palette[1])
-        axs[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
+        ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
 
         for j, l in enumerate(linkagemeths):
             if l == 'centroid' or l == 'median' or l == 'ward':
@@ -844,7 +836,7 @@ def plot_article_uniform_distribs_scale(palette, outdir):
     mus[1, :] *= -1
     rs = np.ones(2) * .9
     coords2 = np.ndarray((0, 2))
-    coords1 = generate_uniform(samplesz, ndims, mus, rs)
+    coords1, _ = generate_uniform(samplesz, ndims, mus, rs)
     # coords2 = generate_uniform(20, ndims, np.array([[.6, .4], [1, .6]]),
                                # np.ones(2) * .2)
     coords = np.concatenate((coords1, coords2))
@@ -852,7 +844,7 @@ def plot_article_uniform_distribs_scale(palette, outdir):
 
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     # plot_scatter(coords, ax[0, 0], palette[1])
-    axs[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
+    ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
 
     mycolour = 'k'
     c = (0, 0)
@@ -916,7 +908,7 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
                                                 minnclusters)
         colours = plot_dendrogram(z, 'single', ax[i, 1], rel, clustids, palettehex)
         # plot_scatter(data[k], ax[i, 0], colours)
-        axs[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
+        ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
 
         if len(clustids) == 1:
             text = 'rel: ({:.3f}, 0)'.format(rel)
@@ -1034,11 +1026,27 @@ def include_icons(iconpaths, fig):
         newax.axis('off')
 
 ##########################################################
-def plot_parallel_all(results, outdir):
+def plot_parallel_all(results, validkeys, outdir):
     if not os.path.isdir(outdir): os.mkdir(outdir)
+
+    validkeys = [
+        '1,uniform',
+        '1,gaussian',
+        '1,quadratic',
+        '1,exponential',
+        '2,uniform,0.5',
+        '2,gaussian,0.03',
+        '2,quadratic,0.6',
+        '2,exponential,0.1',
+        # '2,uniform,0.55',
+        # '2,gaussian,0.05',
+        # '2,quadratic,0.7',
+        # '2,exponential,0.2',
+    ]
 
     colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
     df = pd.read_csv(results, sep='|')
+    df = df[df.distrib.isin(validkeys)]
     dims = np.unique(df.dim)
 
     figscale = 5
@@ -1060,63 +1068,43 @@ def plot_parallel_all(results, outdir):
                  transform = axs[i, 0].transAxes
                  )
 
-    filenames = [
-        'icon_1,uniform,rad0.9.png',
-        'icon_1,linear.png',
-        'icon_1,quadratic.png',
-        'icon_1,gaussian.png',
-        'icon_1,exponential.png',
-        'icon_2,uniform,rad0.9.png',
-        'icon_2,uniform,rad0.5.png',
-        'icon_2,gaussian,std0.2.png',
-        'icon_2,gaussian,std0.1.png',
-        'icon_2,gaussian,elliptical.png',
-    ]
-    iconpaths = [ pjoin('/tmp/', f) for f in filenames ]
+    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in validkeys ]
 
     include_icons(iconpaths, fig)
 
-    plt.savefig(pjoin(outdir, 'error_all.pdf'))
+    plt.savefig(pjoin(outdir, 'parallel_all.pdf'))
 
 ##########################################################
-def count_method_ranking(resultspath, linkagemeths, outdir, linkagemeth='single'):
+def count_method_ranking(resultspath, linkagemeths, linkagemeth,
+                         validkeys, outdir):
     print('linkagemeth:{}'.format(linkagemeth))
     df = pd.read_csv(resultspath, sep='|')
+    df = df[df.distrib.isin(validkeys)]
+    
     methidx = np.where(np.array(linkagemeths) == linkagemeth)[0][0]
 
     data = []
     for i, row in df.iterrows():
         values = row[linkagemeths].values
-        # print('values:{}'.format(values))
-        # input()
         sortedidx = np.argsort(values)
         methrank = np.where(sortedidx == methidx)[0][0]
 
-        # print('##########################################################')
-        # print(values)
-        # print('dim:{}'.format(row.dim))
-        # print('i:{}'.format(i))
-        # print('sortedidx:{}'.format(sortedidx))
-        # print('methrank:{}'.format(methrank))
-        # input()
         data.append([row.distrib, row.dim, methrank])
 
-    methdf = pd.DataFrame(data,
-                          columns='distrib,dim,methrank'.split(','))
-    # print('methdf:{}'.format(methdf))
-    # input()
+    methdf = pd.DataFrame(data, columns='distrib,dim,methrank'.split(','))
     ndistribs = len(np.unique(methdf.distrib))
 
     for d in np.unique(methdf.dim):
-        # print(methdf[methdf.dim == d])
-        filtered1 = methdf[methdf.dim == d][:5]
+        filtered1 = methdf[methdf.dim == d][:4]
         filtered1 = filtered1[(filtered1.methrank < 3)]
 
-        filtered2 = methdf[methdf.dim == d][5:]
+        filtered2 = methdf[methdf.dim == d][4:]
         filtered2 = filtered2[(filtered2.methrank < 3)]
 
-        print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 5,
-                                     filtered2.shape[0], 5))
+        m = methdf[methdf.dim == d]
+
+        print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 4,
+                                     filtered2.shape[0], 4))
 
 ##########################################################
 def scatter_pairwise(resultspath, linkagemeths, outdir):
@@ -1142,13 +1130,16 @@ def scatter_pairwise(resultspath, linkagemeths, outdir):
             for dim in dims:
                 df2 = df[df.dim == dim]
                 ax.scatter(df2[m1], df2[m2], label=str(dim))
-            ax.legend(title='Dimension')
+            p = pearsonr(df2[m1], df2[m2])
+            ax.set_title('Pearson corr: {:.3f}'.format(p[0]))
+            ax.legend(title='Dimension', loc='lower right')
             ax.set_xlabel(m1)
+            ax.set_ylabel(m2)
             ax.set_ylabel(m2)
             k += 1
 
     plt.tight_layout(pad=1, h_pad=3)
-    plt.savefig(pjoin(outdir, 'out.pdf'))
+    plt.savefig(pjoin(outdir, 'meths_pairwise.pdf'))
 
 ##########################################################
 def main():
@@ -1179,22 +1170,36 @@ def main():
 
     data = generate_data(args.samplesz, args.ndims)
     plot_points(data, args.outdir)
-    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    # generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   # args.nrealizations, palettehex,
-                                   # args.outdir)
-    # return
-    # plot_contours(list(data.keys()), args.outdir)
-    # plot_contours(list(data.keys()), args.outdir, True)
-    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    # plot_article_quiver(palettehex, args.outdir)
-    # resultspath = 'data/20200326-hieclust.csv'
+    generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
+    generate_dendrogram_single(data, metric, palettehex, args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   args.nrealizations, palettehex,
+                                   args.outdir)
+    plot_contours(list(data.keys()), args.outdir)
+    plot_contours(list(data.keys()), args.outdir, True)
+    plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    plot_article_quiver(palettehex, args.outdir)
+    resultspath = args.resultspath
 
-    # plot_parallel_all(args.resultspath, args.outdir)
-    # count_method_ranking(args.resultspath, linkagemeths, args.outdir, 'single')
-    # scatter_pairwise(args.resultspath, linkagemeths, args.outdir)
-    # plot_parallel_all(resultspath, args.outdir)
+    validkeys = [
+        '1,uniform',
+        '1,gaussian',
+        '1,quadratic',
+        '1,exponential',
+        '2,uniform,0.5',
+        '2,gaussian,0.03',
+        '2,quadratic,0.6',
+        '2,exponential,0.1',
+        # '2,uniform,0.55',
+        # '2,gaussian,0.05',
+        # '2,quadratic,0.7',
+        # '2,exponential,0.2',
+    ]
+    
+    plot_parallel_all(resultspath, validkeys, args.outdir)
+    count_method_ranking(resultspath, linkagemeths, 'single', validkeys,
+                         args.outdir)
+    scatter_pairwise(resultspath, linkagemeths, args.outdir)
     # test_inconsistency()
 
 ##########################################################
