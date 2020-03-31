@@ -1107,8 +1107,9 @@ def count_method_ranking(resultspath, linkagemeths, linkagemeth,
                                      filtered2.shape[0], 4))
 
 ##########################################################
-def scatter_pairwise(resultspath, linkagemeths, outdir):
+def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
     df = pd.read_csv(resultspath, sep='|')
+    df = df[df.distrib.isin(validkeys)]
 
     nmeths = len(linkagemeths)
     nplots = int(scipy.special.comb(nmeths, 2))
@@ -1119,7 +1120,11 @@ def scatter_pairwise(resultspath, linkagemeths, outdir):
                             figsize=(ncols*figscale*1.2, nrows*figscale))
 
     dims = np.unique(df.dim)
+    distribs = []
+    for d in np.unique(df.distrib):
+        if d.startswith('1'):
 
+    corr =  np.ones((nmeths, nmeths), dtype=float)
     k = 0
     for i in range(nmeths-1):
         m1 = linkagemeths[i]
@@ -1127,11 +1132,17 @@ def scatter_pairwise(resultspath, linkagemeths, outdir):
             ax = axs[k, 0]
             m2 = linkagemeths[j]
 
+            
             for dim in dims:
                 df2 = df[df.dim == dim]
-                ax.scatter(df2[m1], df2[m2], label=str(dim))
-            p = pearsonr(df2[m1], df2[m2])
-            ax.set_title('Pearson corr: {:.3f}'.format(p[0]))
+                # marker = np.array((['+']*4 ) + (['o']*8 ))
+                marker = '+'
+                ax.scatter(df2[m1], df2[m2], label=str(dim), marker=marker)
+
+            p = pearsonr(df2[m1], df2[m2])[0]
+            corr[i, j] = p
+            corr[j, i] = p
+            ax.set_title('Pearson corr: {:.3f}'.format(p))
             ax.legend(title='Dimension', loc='lower right')
             ax.set_xlabel(m1)
             ax.set_ylabel(m2)
@@ -1140,6 +1151,57 @@ def scatter_pairwise(resultspath, linkagemeths, outdir):
 
     plt.tight_layout(pad=1, h_pad=3)
     plt.savefig(pjoin(outdir, 'meths_pairwise.pdf'))
+    return corr
+
+def plot_meths_heatmap(methscorr, linkagemeths):
+    # sphinx_gallery_thumbnail_number = 2
+
+    # vegetables = ["cucumber", "tomato", "lettuce", "asparagus",
+                  # "potato", "wheat", "barley"]
+    vegetables = linkagemeths
+    farmers = linkagemeths
+    # farmers = ["Farmer Joe", "Upland Bros.", "Smith Gardening",
+               # "Agrifun", "Organiculture", "BioGoods Ltd.", "Cornylee Corp."]
+
+    # harvest = np.array([[0.8, 2.4, 2.5, 3.9, 0.0, 4.0, 0.0],
+                        # [2.4, 0.0, 4.0, 1.0, 2.7, 0.0, 0.0],
+                        # [1.1, 2.4, 0.8, 4.3, 1.9, 4.4, 0.0],
+                        # [0.6, 0.0, 0.3, 0.0, 3.1, 0.0, 0.0],
+                        # [0.7, 1.7, 0.6, 2.6, 2.2, 6.2, 0.0],
+                        # [1.3, 1.2, 0.0, 0.0, 0.0, 3.2, 5.1],
+                        # [0.1, 2.0, 0.0, 1.4, 0.0, 1.9, 6.3]])
+    harvest = methscorr
+
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(harvest, cmap='YlGn')
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(farmers)))
+    ax.set_yticks(np.arange(len(vegetables)))
+    # ... and label them with the respective list entries
+    ax.set_xticklabels(farmers)
+    ax.set_yticklabels(vegetables)
+    ax.grid(False)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    for i in range(len(vegetables)):
+        for j in range(len(farmers)):
+            text = ax.text(j, i, '{:.2f}'.format(harvest[i, j]),
+                           ha="center", va="center", color="k")
+
+
+    ax.set_title("Pairwise pearson correlation between linkage methods")
+
+    # Create colorbar
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel('pearson corr.', rotation=-90, va="bottom")
+    fig.tight_layout()
+    plt.savefig('/tmp/out.pdf')
 
 ##########################################################
 def main():
@@ -1169,16 +1231,16 @@ def main():
     info('Linkage methods:{}'.format(linkagemeths))
 
     data = generate_data(args.samplesz, args.ndims)
-    plot_points(data, args.outdir)
-    generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   args.nrealizations, palettehex,
-                                   args.outdir)
-    plot_contours(list(data.keys()), args.outdir)
-    plot_contours(list(data.keys()), args.outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    plot_article_quiver(palettehex, args.outdir)
+    # plot_points(data, args.outdir)
+    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
+    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
+    # generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   # args.nrealizations, palettehex,
+                                   # args.outdir)
+    # plot_contours(list(data.keys()), args.outdir)
+    # plot_contours(list(data.keys()), args.outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    # plot_article_quiver(palettehex, args.outdir)
     resultspath = args.resultspath
 
     validkeys = [
@@ -1196,10 +1258,19 @@ def main():
         # '2,exponential,0.2',
     ]
     
-    plot_parallel_all(resultspath, validkeys, args.outdir)
-    count_method_ranking(resultspath, linkagemeths, 'single', validkeys,
-                         args.outdir)
-    scatter_pairwise(resultspath, linkagemeths, args.outdir)
+    # plot_parallel_all(resultspath, validkeys, args.outdir)
+    # count_method_ranking(resultspath, linkagemeths, 'single', validkeys,
+                         # args.outdir)
+    methscorr = scatter_pairwise(resultspath, linkagemeths, validkeys, args.outdir)
+
+    SEP = ','
+    print(SEP + SEP.join(linkagemeths))
+    for i in range(methscorr.shape[0]):
+        print(linkagemeths[i], end=SEP)
+        for j in range(methscorr.shape[1]):
+            print('{:.2f}'.format(methscorr[i][j]), end='')
+        print('')
+    plot_meths_heatmap(methscorr, linkagemeths)
     # test_inconsistency()
 
 ##########################################################
