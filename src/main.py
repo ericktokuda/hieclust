@@ -30,6 +30,7 @@ import pandas as pd
 from sklearn import datasets
 import imageio
 import scipy
+import inspect
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -127,7 +128,7 @@ def get_points_inside_circle(x, c0, r):
     return inside
 
 ##########################################################
-def get_random_partitions(x, npartitions, partitionsz):
+def get_random_sample(x, npartitions, partitionsz):
     idx = np.random.randint(x.shape[0], size=partitionsz)
     counts = np.zeros(npartitions, dtype=int)
 
@@ -140,9 +141,9 @@ def get_random_partitions(x, npartitions, partitionsz):
 ##########################################################
 def generate_uniform(samplesz, ndims, mus, rads):
     ncenters = len(mus)
-    nrows = samplesz * ncenters
 
-    x = np.zeros((nrows, ndims))
+    # x is filled with ncenters times the requested size
+    x = np.zeros((samplesz * ncenters, ndims))
 
     for i in range(ncenters):
         min_ = mus[i] - rads[i]
@@ -156,7 +157,7 @@ def generate_uniform(samplesz, ndims, mus, rads):
 
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
 
-    return get_random_partitions(x, ncenters, samplesz)
+    return get_random_sample(x, ncenters, samplesz)
 
 ##########################################################
 def generate_multivariate_normal(samplesz, ndims, mus, covs=[]):
@@ -165,13 +166,12 @@ def generate_multivariate_normal(samplesz, ndims, mus, covs=[]):
 
     for i in range(ncenters):
         cov = covs[i, :, :]
-        # print('cov:{}'.format(cov))
 
         aux = np.random.multivariate_normal(mus[i], cov, size=samplesz)
         # aux = get_points_inside_circle(aux, c, rs[i])
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
 
-    return get_random_partitions(x, ncenters, samplesz)
+    return get_random_sample(x, ncenters, samplesz)
 
 ##########################################################
 def generate_exponential(samplesz, ndims, mus, rads):
@@ -184,7 +184,7 @@ def generate_exponential(samplesz, ndims, mus, rads):
         # aux = get_points_inside_circle(aux, mu, 1)
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
 
-    return get_random_partitions(x, ncenters, samplesz)
+    return get_random_sample(x, ncenters, samplesz)
 
 ##########################################################
 def random_sign(sampleshape):
@@ -202,7 +202,59 @@ def generate_power(samplesz, ndims, power, mus, rads):
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
 
 
-    return get_random_partitions(x, ncenters, samplesz)
+    return get_random_sample(x, ncenters, samplesz)
+
+##########################################################
+def calculate_alpha(x, partsz):
+    """Print alpha value
+
+    Args:
+    x(np.ndarray): numpy array containing data
+    partsz(np.ndarray): np array containing the partition sizes
+
+    Returns:
+    float: alpha value
+    """
+
+    info(inspect.stack()[0][3] + '()')
+    d1 = x[:partsz[0]]
+    d2 = x[partsz[0]:]
+    k = np.linalg.norm(np.mean(d1, 0))
+    d = np.mean([np.linalg.norm(np.mean(d1, 0)), np.linalg.norm(np.mean(d2, 0))])
+    stdavg = np.mean([np.std(d1), np.std(d2)])
+
+    alpha = 2 * d / stdavg
+    return alpha
+
+##########################################################
+def shift_clusters(x, partsz, alpha):
+    """Shift cluster accordign to
+    alpha = 2*d / std
+    where d is the distance between the cluster and the origin
+    Resulting clusters are symmetric wrt the origin
+
+    Args:
+    x(np.ndarray): numpy array containing data
+    alpha(float): parameter for shifting the clusters
+
+    Returns:
+    np.ndarray: shifted cluters
+    """
+    ncenters = len(partsz)
+    d1 = x[:partsz[0]]
+    d2 = x[partsz[0]:]
+    stdavg = np.mean([np.std(d1), np.std(d2)])
+
+    d = alpha * stdavg / 2.0
+    mu = d / np.sqrt(ncenters)
+    shifted = x.copy()
+
+    deltamu = (-mu) - np.mean(d1)
+    shifted[:partsz[0]] += deltamu
+    deltamu = (mu) - np.mean(d2)
+    shifted[partsz[0]:] += deltamu
+    # calculate_alpha(shifted, partsz)
+    return shifted
 
 ##########################################################
 def generate_data(samplesz, ndims):
@@ -215,7 +267,8 @@ def generate_data(samplesz, ndims):
     list of np.ndarray: each element is a nx2 np.ndarray
     """
 
-    info('Generating data...')
+    info(inspect.stack()[0][3] + '()')
+
     data = {}
     partsz = {}
 
@@ -235,40 +288,33 @@ def generate_data(samplesz, ndims):
     k = '1,exponential'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
 
-    mus = np.ones((2, ndims)) * .4 
-    mus[1, :] *= -1
-    rads = np.ones(2)
+    mus = np.ones((2, ndims))
+    mus[0, :] *= -1
+    rads = np.ones(2) * 1.0
+    covs = np.array([np.eye(ndims)] * 2)
 
-    k = '2,uniform,0.5'
-    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.5)
+    for alpha in [5, 6]:
+        k = '2,uniform,' + str(alpha)
+        data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
+        data[k] = shift_clusters(data[k], partsz[k], alpha)
 
-    k = '2,gaussian,0.03'
-    covs = np.array([np.eye(ndims) * .03] * 2)
-    data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+        k = '2,gaussian,' + str(alpha)
+        data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
+        data[k] = shift_clusters(data[k], partsz[k], alpha)
 
-    k = '2,quadratic,0.6'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.6)
+        k = '2,quadratic,' + str(alpha)
+        data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads)
+        data[k] = shift_clusters(data[k], partsz[k], alpha)
 
-    k = '2,exponential,0.1'
-    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.1)
-
-    k = '2,uniform,0.55'
-    data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads*.55)
-
-    k = '2,gaussian,0.05'
-    covs = np.array([np.eye(ndims) * .05] * 2)
-    data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
-
-    k = '2,quadratic,0.7'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads*.7)
-
-    k = '2,exponential,0.2'
-    data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads*.2)
+        k = '2,exponential,' + str(alpha)
+        data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads)
+        data[k] = shift_clusters(data[k], partsz[k], alpha)
 
     return data
     
 ##########################################################
 def plot_points(data, outdir):
+    info(inspect.stack()[0][3] + '()')
     figscale = 4
     fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
                 figsize=(len(data.keys())*figscale, 1*figscale))
@@ -598,7 +644,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         rels[k] = {l: [[], []] for l in linkagemeths}
 
     for r in range(nrealizations): # Compute relevances
-        info('Realization {:02d}'.format(r))
+        info('realization {:02d}'.format(r))
         data = generate_data(samplesz, ndims)
 
         for j, linkagemeth in enumerate(linkagemeths):
@@ -760,7 +806,7 @@ def test_inconsistency():
 
 ##########################################################
 def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
-    info('Generating dendrograms...')
+    info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     minrelsize = 0.3
     samplesz = data[list(data.keys())[0]].shape[0]
@@ -790,7 +836,6 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
 
     for i, k in enumerate(data):
         nclusters = int(k.split(',')[0])
-        print('k:{}'.format(k))
         # plot_scatter(data[k], ax[i, 0], palette[1])
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
 
@@ -827,10 +872,9 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
 
 ##########################################################
 def plot_article_uniform_distribs_scale(palette, outdir):
+    info(inspect.stack()[0][3] + '()')
     samplesz = 250
     ndims = 2
-
-    info('Plotting uniform bimodal distrib...')
 
     mus = np.ones((2, ndims))*.7
     mus[1, :] *= -1
@@ -873,6 +917,7 @@ def plot_article_uniform_distribs_scale(palette, outdir):
 
 ##########################################################
 def generate_dendrogram_single(data, metric, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     minrelsize = 0.3
     nrows = len(data.keys())
@@ -900,7 +945,6 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
         fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5), squeeze=False)
 
     for i, k in enumerate(data):
-        info(k)
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], 'single', metric)
@@ -933,6 +977,7 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
     fig, ax = plt.subplots(figsize=(4, 3.5))
     orig = np.zeros(2)
     v1 = np.array([0.6, 1.8])
@@ -979,6 +1024,7 @@ def plot_article_quiver(palettehex, outdir):
 
 ##########################################################
 def plot_parallel(df, colours, ax, fig):
+    info(inspect.stack()[0][3] + '()')
     dim = df.dim[0]
     df = df.T.reset_index()
     df = df[df['index'] != 'dim']
@@ -1027,6 +1073,7 @@ def include_icons(iconpaths, fig):
 
 ##########################################################
 def plot_parallel_all(results, validkeys, outdir):
+    info(inspect.stack()[0][3] + '()')
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
     validkeys = [
@@ -1077,7 +1124,7 @@ def plot_parallel_all(results, validkeys, outdir):
 ##########################################################
 def count_method_ranking(resultspath, linkagemeths, linkagemeth,
                          validkeys, outdir):
-    print('linkagemeth:{}'.format(linkagemeth))
+    info(inspect.stack()[0][3] + '()')
     df = pd.read_csv(resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
     
@@ -1108,6 +1155,7 @@ def count_method_ranking(resultspath, linkagemeths, linkagemeth,
 
 ##########################################################
 def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
+    info(inspect.stack()[0][3] + '()')
     df = pd.read_csv(resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
@@ -1121,8 +1169,8 @@ def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
 
     dims = np.unique(df.dim)
     distribs = []
-    for d in np.unique(df.distrib):
-        if d.startswith('1'):
+    # for d in np.unique(df.distrib):
+        # if d.startswith('1'):
 
     corr =  np.ones((nmeths, nmeths), dtype=float)
     k = 0
@@ -1154,22 +1202,9 @@ def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
     return corr
 
 def plot_meths_heatmap(methscorr, linkagemeths):
-    # sphinx_gallery_thumbnail_number = 2
-
-    # vegetables = ["cucumber", "tomato", "lettuce", "asparagus",
-                  # "potato", "wheat", "barley"]
+    info(inspect.stack()[0][3] + '()')
     vegetables = linkagemeths
     farmers = linkagemeths
-    # farmers = ["Farmer Joe", "Upland Bros.", "Smith Gardening",
-               # "Agrifun", "Organiculture", "BioGoods Ltd.", "Cornylee Corp."]
-
-    # harvest = np.array([[0.8, 2.4, 2.5, 3.9, 0.0, 4.0, 0.0],
-                        # [2.4, 0.0, 4.0, 1.0, 2.7, 0.0, 0.0],
-                        # [1.1, 2.4, 0.8, 4.3, 1.9, 4.4, 0.0],
-                        # [0.6, 0.0, 0.3, 0.0, 3.1, 0.0, 0.0],
-                        # [0.7, 1.7, 0.6, 2.6, 2.2, 6.2, 0.0],
-                        # [1.3, 1.2, 0.0, 0.0, 0.0, 3.2, 5.1],
-                        # [0.1, 2.0, 0.0, 1.4, 0.0, 1.9, 6.3]])
     harvest = methscorr
 
 
@@ -1221,56 +1256,44 @@ def main():
 
     if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
     np.set_printoptions(precision=5, suppress=True)
-    # np.random.seed(0)
     np.random.seed(args.seed)
 
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    # palettehex = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#ffff33']
-    info('Linkage methods:{}'.format(linkagemeths))
-
-    data = generate_data(args.samplesz, args.ndims)
-    # plot_points(data, args.outdir)
-    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    # generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   # args.nrealizations, palettehex,
-                                   # args.outdir)
-    # plot_contours(list(data.keys()), args.outdir)
-    # plot_contours(list(data.keys()), args.outdir, True)
-    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    # plot_article_quiver(palettehex, args.outdir)
-    resultspath = args.resultspath
-
     validkeys = [
         '1,uniform',
         '1,gaussian',
         '1,quadratic',
         '1,exponential',
-        '2,uniform,0.5',
-        '2,gaussian,0.03',
-        '2,quadratic,0.6',
-        '2,exponential,0.1',
+        '2,uniform,5',
+        '2,gaussian,5',
+        '2,quadratic,5',
+        '2,exponential,5',
         # '2,uniform,0.55',
         # '2,gaussian,0.05',
         # '2,quadratic,0.7',
         # '2,exponential,0.2',
     ]
+
+    data = generate_data(args.samplesz, args.ndims)
+    # plot_points(data, args.outdir)
+    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
+    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   args.nrealizations, palettehex,
+                                   args.outdir)
+    # plot_contours(list(data.keys()), args.outdir)
+    # plot_contours(list(data.keys()), args.outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    # plot_article_quiver(palettehex, args.outdir)
+    # resultspath = args.resultspath
     
     # plot_parallel_all(resultspath, validkeys, args.outdir)
     # count_method_ranking(resultspath, linkagemeths, 'single', validkeys,
                          # args.outdir)
-    methscorr = scatter_pairwise(resultspath, linkagemeths, validkeys, args.outdir)
-
-    SEP = ','
-    print(SEP + SEP.join(linkagemeths))
-    for i in range(methscorr.shape[0]):
-        print(linkagemeths[i], end=SEP)
-        for j in range(methscorr.shape[1]):
-            print('{:.2f}'.format(methscorr[i][j]), end='')
-        print('')
-    plot_meths_heatmap(methscorr, linkagemeths)
+    # methscorr = scatter_pairwise(resultspath, linkagemeths, validkeys, args.outdir)
+    # plot_meths_heatmap(methscorr, linkagemeths)
     # test_inconsistency()
 
 ##########################################################
