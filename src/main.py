@@ -31,6 +31,7 @@ from sklearn import datasets
 import imageio
 import scipy
 import inspect
+import igraph
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -1039,14 +1040,14 @@ def plot_parallel(df, colours, ax, fig):
     ax.xaxis.set_ticks_position('top')
     ax.set_yticks([0, 100, 200, 300, 400, 500])
     ax.set_xticklabels([])
-    ax.set_xlim(-.5, 10)
+    ax.set_xlim(-.5, 7.5)
     ax.set_ylabel('Accumulated error', fontsize=15)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     ax.legend(
         fontsize=15,
-        loc=[.55, .55],
+        loc=[.85, .55],
     )
 
     ax.tick_params(bottom="off")
@@ -1065,35 +1066,19 @@ def plot_parallel(df, colours, ax, fig):
 ##########################################################
 def include_icons(iconpaths, fig):
     for i, iconpath in enumerate(iconpaths):
-        sign = 0.015*(-1) ** i
+        # sign = 0.015*(-1) ** i
+        sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.21+i*.0723, 0.78+sign, 0.08, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.18+i*.107, 0.8+sign, 0.08, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
 ##########################################################
-def plot_parallel_all(results, validkeys, outdir):
+def plot_parallel_all(df, outdir):
     info(inspect.stack()[0][3] + '()')
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
-    validkeys = [
-        '1,uniform',
-        '1,gaussian',
-        '1,quadratic',
-        '1,exponential',
-        '2,uniform,5',
-        '2,gaussian,5',
-        '2,quadratic,5',
-        '2,exponential,5',
-        # '2,uniform,0.55',
-        # '2,gaussian,0.05',
-        # '2,quadratic,0.7',
-        # '2,exponential,0.2',
-    ]
-
     colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
-    df = pd.read_csv(results, sep='|')
-    df = df[df.distrib.isin(validkeys)]
     dims = np.unique(df.dim)
 
     figscale = 5
@@ -1107,7 +1092,7 @@ def plot_parallel_all(results, validkeys, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.1, 0, 1, .96), h_pad=-2)
+    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=-2)
     for i, dim in enumerate(dims):
         plt.text(-0.2, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
@@ -1115,18 +1100,15 @@ def plot_parallel_all(results, validkeys, outdir):
                  transform = axs[i, 0].transAxes
                  )
 
-    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in validkeys ]
+    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in np.unique(df.distrib) ]
 
     include_icons(iconpaths, fig)
 
     plt.savefig(pjoin(outdir, 'parallel_all.pdf'))
 
 ##########################################################
-def count_method_ranking(resultspath, linkagemeths, linkagemeth,
-                         validkeys, outdir):
+def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     info(inspect.stack()[0][3] + '()')
-    df = pd.read_csv(resultspath, sep='|')
-    df = df[df.distrib.isin(validkeys)]
     
     methidx = np.where(np.array(linkagemeths) == linkagemeth)[0][0]
 
@@ -1154,10 +1136,8 @@ def count_method_ranking(resultspath, linkagemeths, linkagemeth,
                                      filtered2.shape[0], 4))
 
 ##########################################################
-def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
+def scatter_pairwise(df, linkagemeths, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
-    df = pd.read_csv(resultspath, sep='|')
-    df = df[df.distrib.isin(validkeys)]
 
     nmeths = len(linkagemeths)
     nplots = int(scipy.special.comb(nmeths, 2))
@@ -1169,8 +1149,12 @@ def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
 
     dims = np.unique(df.dim)
     distribs = []
-    # for d in np.unique(df.distrib):
-        # if d.startswith('1'):
+    modal = {1: [], 2:[]}
+    for d in np.unique(df.distrib):
+        modal[int(d[0])].append(d)
+
+    colours = {c: palettehex[i] for i,c in enumerate(dims)}
+    markers = {1:'$1$', 2: '$2$'}
 
     corr =  np.ones((nmeths, nmeths), dtype=float)
     k = 0
@@ -1180,18 +1164,31 @@ def scatter_pairwise(resultspath, linkagemeths, validkeys, outdir):
             ax = axs[k, 0]
             m2 = linkagemeths[j]
 
-            
-            for dim in dims:
-                df2 = df[df.dim == dim]
-                # marker = np.array((['+']*4 ) + (['o']*8 ))
-                marker = '+'
-                ax.scatter(df2[m1], df2[m2], label=str(dim), marker=marker)
+            for idx, row in df.iterrows():
+                dim = row.dim
+                nclusters = int(str(row.distrib)[0])
+                ax.scatter(row[m1], row[m2], label=str(dim),
+                           c=colours[dim], marker=markers[nclusters])
 
-            p = pearsonr(df2[m1], df2[m2])[0]
+            p = pearsonr(df[m1], df[m2])[0]
             corr[i, j] = p
             corr[j, i] = p
+
             ax.set_title('Pearson corr: {:.3f}'.format(p))
-            ax.legend(title='Dimension', loc='lower right')
+
+            from matplotlib.patches import Patch
+            legend_elements = [   Patch(
+                                       facecolor=palettehex[dimidx],
+                                       edgecolor=palettehex[dimidx],
+                                       label=str(dims[dimidx]),
+                                       )
+                               for dimidx in range(len(dims))]
+
+            # Create the figure
+            ax.legend(handles=legend_elements, loc='lower right')
+            # breakpoint()
+            
+            # ax.legend(title='Dimension', loc='lower right')
             ax.set_xlabel(m1)
             ax.set_ylabel(m2)
             ax.set_ylabel(m2)
@@ -1280,19 +1277,21 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
-    generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   args.nrealizations, palettehex,
-                                   args.outdir)
+    # generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   # args.nrealizations, palettehex,
+                                   # args.outdir)
     # plot_contours(list(data.keys()), args.outdir)
     # plot_contours(list(data.keys()), args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     
-    # plot_parallel_all(args.resultspath, validkeys, args.outdir)
-    # count_method_ranking(args.resultspath, linkagemeths, 'single', validkeys,
-                         # args.outdir)
-    # methscorr = scatter_pairwise(args.resultspath, linkagemeths, validkeys, args.outdir)
-    # plot_meths_heatmap(methscorr, linkagemeths)
+    df = pd.read_csv(args.resultspath, sep='|')
+    df = df[df.distrib.isin(validkeys)]
+
+    plot_parallel_all(df, args.outdir)
+    count_method_ranking(df, linkagemeths, 'single', args.outdir)
+    methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
+    plot_meths_heatmap(methscorr, linkagemeths)
     # test_inconsistency()
 
 ##########################################################
