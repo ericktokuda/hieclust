@@ -722,7 +722,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 i += 1
     fh.close()
 
-    if ndims > 2: return
+    # if ndims > 2: return
 
     palette = hex2rgb(palettehex, alpha=.8)
 
@@ -1024,7 +1024,6 @@ def plot_article_quiver(palettehex, outdir):
 
 ##########################################################
 def plot_parallel(df, colours, ax, fig):
-    info(inspect.stack()[0][3] + '()')
     dim = df.dim[0]
     df = df.T.reset_index()
     df = df[df['index'] != 'dim']
@@ -1060,6 +1059,7 @@ def plot_parallel(df, colours, ax, fig):
 
     trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
     line = Line2D([0, .98], [-.02, -.02], color='k', transform=trans)
+    plt.tight_layout()
     fig.lines.append(line)
 
 ##########################################################
@@ -1081,10 +1081,10 @@ def plot_parallel_all(results, validkeys, outdir):
         '1,gaussian',
         '1,quadratic',
         '1,exponential',
-        '2,uniform,0.5',
-        '2,gaussian,0.03',
-        '2,quadratic,0.6',
-        '2,exponential,0.1',
+        '2,uniform,5',
+        '2,gaussian,5',
+        '2,quadratic,5',
+        '2,exponential,5',
         # '2,uniform,0.55',
         # '2,gaussian,0.05',
         # '2,quadratic,0.7',
@@ -1097,7 +1097,7 @@ def plot_parallel_all(results, validkeys, outdir):
     dims = np.unique(df.dim)
 
     figscale = 5
-    fig, axs = plt.subplots(len(dims), 1, figsize=(1.5*figscale, len(dims)*figscale),
+    fig, axs = plt.subplots(len(dims), 1, figsize=(3.5*figscale, len(dims)*figscale),
                             squeeze=False)
 
     for i, dim in enumerate(dims):
@@ -1287,12 +1287,11 @@ def main():
     # plot_contours(list(data.keys()), args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
-    # resultspath = args.resultspath
     
-    # plot_parallel_all(resultspath, validkeys, args.outdir)
-    # count_method_ranking(resultspath, linkagemeths, 'single', validkeys,
+    # plot_parallel_all(args.resultspath, validkeys, args.outdir)
+    # count_method_ranking(args.resultspath, linkagemeths, 'single', validkeys,
                          # args.outdir)
-    # methscorr = scatter_pairwise(resultspath, linkagemeths, validkeys, args.outdir)
+    # methscorr = scatter_pairwise(args.resultspath, linkagemeths, validkeys, args.outdir)
     # plot_meths_heatmap(methscorr, linkagemeths)
     # test_inconsistency()
 
