@@ -293,7 +293,7 @@ def generate_data(samplesz, ndims):
     rads = np.ones(2) * 1.0
     covs = np.array([np.eye(ndims)] * 2)
 
-    for alpha in [5, 6]:
+    for alpha in [5, 6, 7]:
         k = '2,uniform,' + str(alpha)
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
