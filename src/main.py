@@ -295,6 +295,7 @@ def generate_data(samplesz, ndims):
     covs = np.array([np.eye(ndims)] * 2)
 
     for alpha in [5, 6, 7]:
+    # for alpha in [4]:
         k = '2,uniform,' + str(alpha)
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
@@ -319,9 +320,18 @@ def plot_points(data, outdir):
     figscale = 4
     fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
                 figsize=(len(data.keys())*figscale, 1*figscale))
+
     for i, k in enumerate(data):
+        ndims = data[k].shape[1]
+        minax = np.max(data[k]) * 1.15
         axs[0, i].scatter(data[k][:, 0], data[k][:, 1])
+        axs[0, i].set_xlim(-minax, +minax)
+        axs[0, i].set_ylim(-minax, +minax)
         axs[0, i].set_title(k)
+    plt.tight_layout(rect=(0, 0, 1, .9))
+    fig.suptitle('First two coordinates of {}-d points'.\
+                 format(ndims),
+                 fontsize='x-large', y=0.98)
     plt.savefig(pjoin(outdir, 'points_all.pdf'))
 
 ##########################################################
@@ -1198,32 +1208,29 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
     plt.savefig(pjoin(outdir, 'meths_pairwise.pdf'))
     return corr
 
-def plot_meths_heatmap(methscorr, linkagemeths):
+def plot_meths_heatmap(methscorr, linkagemeths, outdir):
     info(inspect.stack()[0][3] + '()')
-    vegetables = linkagemeths
-    farmers = linkagemeths
-    harvest = methscorr
 
+    n = methscorr.shape[0]
+    for j in range(n):
+        for i in range(j+1, n):
+            methscorr[i, j] = 1
 
     fig, ax = plt.subplots()
-    im = ax.imshow(harvest, cmap='YlGn')
+    im = ax.imshow(methscorr, cmap='YlGn')
 
-    # We want to show all ticks...
-    ax.set_xticks(np.arange(len(farmers)))
-    ax.set_yticks(np.arange(len(vegetables)))
-    # ... and label them with the respective list entries
-    ax.set_xticklabels(farmers)
-    ax.set_yticklabels(vegetables)
+    ax.set_xticks(np.arange(len(linkagemeths)))
+    ax.set_yticks(np.arange(len(linkagemeths)))
+    ax.set_xticklabels(linkagemeths)
+    ax.set_yticklabels(linkagemeths)
     ax.grid(False)
 
-    # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
              rotation_mode="anchor")
 
-    # Loop over data dimensions and create text annotations.
-    for i in range(len(vegetables)):
-        for j in range(len(farmers)):
-            text = ax.text(j, i, '{:.2f}'.format(harvest[i, j]),
+    for i in range(n):
+        for j in range(i+1, n):
+            text = ax.text(j, i, '{:.2f}'.format(methscorr[i, j]),
                            ha="center", va="center", color="k")
 
 
@@ -1233,7 +1240,37 @@ def plot_meths_heatmap(methscorr, linkagemeths):
     cbar = ax.figure.colorbar(im, ax=ax)
     cbar.ax.set_ylabel('pearson corr.', rotation=-90, va="bottom")
     fig.tight_layout()
-    plt.savefig('/tmp/out.pdf')
+    plt.savefig(pjoin(outdir, 'meths_heatmap.pdf'))
+
+##########################################################
+def plot_graph(methscorr, linkagemeths, outdir):
+    """Plot the graph according to the weights.
+    However, this is an ill posed problem because
+    the weights would need to satisfy the triangle
+    inequalities to allow this.
+
+    Args:
+    methscorr(np.ndarray): weight matrix
+    linkagemeths(list of str): linkage methods
+    outdir(str): output dir
+    """
+    info(inspect.stack()[0][3] + '()')
+
+    # info('methscorr:{}'.format(methscorr))
+    n = methscorr.shape[0]
+    g = igraph.Graph.Full(n, directed=False, loops=False)
+
+    min_, max_ = np.min(methscorr), np.max(methscorr)
+    range_ = max_ - min_
+    for i in range(g.ecount()):
+        e = g.es[i]
+        c = methscorr[e.source, e.target]
+        g.es[i]['weight'] = (c - min_) / range_
+
+    info(g.es['weight'])
+    g.vs['label'] = linkagemeths
+    edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
+    igraph.plot(g, '/tmp/graph.pdf', layout='fr', edge_label=edgelabels)
 
 ##########################################################
 def main():
@@ -1259,22 +1296,19 @@ def main():
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     validkeys = [
-        '1,uniform',
-        '1,gaussian',
-        '1,quadratic',
-        '1,exponential',
+        # '1,uniform',
+        # '1,gaussian',
+        # '1,quadratic',
+        # '1,exponential',
         '2,uniform,5',
         '2,gaussian,5',
         '2,quadratic,5',
         '2,exponential,5',
-        # '2,uniform,0.55',
-        # '2,gaussian,0.05',
-        # '2,quadratic,0.7',
-        # '2,exponential,0.2',
     ]
 
     data = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
+    # return
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
     # generate_dendrogram_single(data, metric, palettehex, args.outdir)
     # generate_relevance_distrib_all(data, metric, linkagemeths,
@@ -1288,10 +1322,11 @@ def main():
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
-    plot_parallel_all(df, args.outdir)
-    count_method_ranking(df, linkagemeths, 'single', args.outdir)
+    # plot_parallel_all(df, args.outdir)
+    # count_method_ranking(df, linkagemeths, 'single', args.outdir)
     methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
-    plot_meths_heatmap(methscorr, linkagemeths)
+    # plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
+    plot_graph(methscorr, linkagemeths, args.outdir)
     # test_inconsistency()
 
 ##########################################################
