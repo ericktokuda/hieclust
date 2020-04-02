@@ -1270,7 +1270,7 @@ def plot_graph(methscorr, linkagemeths, outdir):
     info(g.es['weight'])
     g.vs['label'] = linkagemeths
     edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
-    igraph.plot(g, '/tmp/graph.pdf', layout='fr', edge_label=edgelabels)
+    igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout='fr', edge_label=edgelabels)
 
 ##########################################################
 def main():
