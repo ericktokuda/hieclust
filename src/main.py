@@ -294,8 +294,7 @@ def generate_data(samplesz, ndims):
     rads = np.ones(2) * 1.0
     covs = np.array([np.eye(ndims)] * 2)
 
-    for alpha in [5, 6, 7]:
-    # for alpha in [4]:
+    for alpha in [4, 5, 6]:
         k = '2,uniform,' + str(alpha)
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
@@ -320,18 +319,12 @@ def plot_points(data, outdir):
     figscale = 4
     fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
                 figsize=(len(data.keys())*figscale, 1*figscale))
-
     for i, k in enumerate(data):
-        ndims = data[k].shape[1]
-        minax = np.max(data[k]) * 1.15
+        max_ = np.max(np.abs(data[k])) * 1.15
         axs[0, i].scatter(data[k][:, 0], data[k][:, 1])
-        axs[0, i].set_xlim(-minax, +minax)
-        axs[0, i].set_ylim(-minax, +minax)
         axs[0, i].set_title(k)
-    plt.tight_layout(rect=(0, 0, 1, .9))
-    fig.suptitle('First two coordinates of {}-d points'.\
-                 format(ndims),
-                 fontsize='x-large', y=0.98)
+        axs[0, i].set_xlim(-max_, +max_)
+        axs[0, i].set_ylim(-max_, +max_)
     plt.savefig(pjoin(outdir, 'points_all.pdf'))
 
 ##########################################################
@@ -1055,9 +1048,10 @@ def plot_parallel(df, colours, ax, fig):
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
+
     ax.legend(
-        fontsize=15,
-        loc=[.85, .55],
+        fontsize=20,
+        loc=[.85, .43],
     )
 
     ax.tick_params(bottom="off")
@@ -1079,7 +1073,7 @@ def include_icons(iconpaths, fig):
         # sign = 0.015*(-1) ** i
         sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.18+i*.107, 0.8+sign, 0.08, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.17+i*.106, 0.79+sign, 0.07, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
@@ -1102,15 +1096,15 @@ def plot_parallel_all(df, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=-2)
+    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.5)
     for i, dim in enumerate(dims):
-        plt.text(-0.2, .5, '{}-D'.format(dim),
+        plt.text(-0.1, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
-                 fontsize='xx-large',
+                 fontsize='30',
                  transform = axs[i, 0].transAxes
                  )
 
-    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in np.unique(df.distrib) ]
+    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in df[df.dim==2].distrib ]
 
     include_icons(iconpaths, fig)
 
@@ -1300,13 +1294,13 @@ def main():
         # '1,gaussian',
         # '1,quadratic',
         # '1,exponential',
-        '2,uniform,5',
-        '2,gaussian,5',
-        '2,quadratic,5',
-        '2,exponential,5',
+        '2,uniform,4',
+        '2,gaussian,4',
+        '2,quadratic,4',
+        '2,exponential,4',
     ]
 
-    data = generate_data(args.samplesz, args.ndims)
+    # data = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
     # return
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
@@ -1314,8 +1308,8 @@ def main():
     # generate_relevance_distrib_all(data, metric, linkagemeths,
                                    # args.nrealizations, palettehex,
                                    # args.outdir)
-    # plot_contours(list(data.keys()), args.outdir)
-    # plot_contours(list(data.keys()), args.outdir, True)
+    # plot_contours(validkeys, args.outdir)
+    # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     
@@ -1324,8 +1318,9 @@ def main():
 
     # plot_parallel_all(df, args.outdir)
     # count_method_ranking(df, linkagemeths, 'single', args.outdir)
+    # return
     methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
-    # plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
+    plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
     plot_graph(methscorr, linkagemeths, args.outdir)
     # test_inconsistency()
 
