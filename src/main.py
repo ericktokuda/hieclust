@@ -1237,7 +1237,7 @@ def plot_meths_heatmap(methscorr, linkagemeths, outdir):
     plt.savefig(pjoin(outdir, 'meths_heatmap.pdf'))
 
 ##########################################################
-def plot_graph(methscorr, linkagemeths, outdir):
+def plot_graph(methscorr_in, linkagemeths, outdir):
     """Plot the graph according to the weights.
     However, this is an ill posed problem because
     the weights would need to satisfy the triangle
@@ -1250,21 +1250,33 @@ def plot_graph(methscorr, linkagemeths, outdir):
     """
     info(inspect.stack()[0][3] + '()')
 
-    # info('methscorr:{}'.format(methscorr))
+    methscorr = np.abs(methscorr_in)
     n = methscorr.shape[0]
     g = igraph.Graph.Full(n, directed=False, loops=False)
 
     min_, max_ = np.min(methscorr), np.max(methscorr)
     range_ = max_ - min_
+
+    todelete = []
+    widths = []
     for i in range(g.ecount()):
         e = g.es[i]
         c = methscorr[e.source, e.target]
-        g.es[i]['weight'] = (c - min_) / range_
+        v = (c - min_) / range_
+        if v > .3:
+            g.es[i]['weight'] = (c - min_) / range_
+            widths.append(10*g.es[i]['weight'])
+        else:
+            todelete.append(i)
+    g.delete_edges(todelete)
 
     info(g.es['weight'])
     g.vs['label'] = linkagemeths
     edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
-    igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout='fr', edge_label=edgelabels)
+    # l = igraph.GraphBase.layout_fruchterman_reingold(weights=g.es['weight'])
+    l = g.layout('fr', weights=g.es['weight'])
+    igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout=l,
+                edge_label=edgelabels, edge_width=widths)
 
 ##########################################################
 def main():
@@ -1290,14 +1302,14 @@ def main():
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     validkeys = [
-        # '1,uniform',
-        # '1,gaussian',
-        # '1,quadratic',
-        # '1,exponential',
-        '2,uniform,4',
-        '2,gaussian,4',
-        '2,quadratic,4',
-        '2,exponential,4',
+        '1,uniform',
+        '1,gaussian',
+        '1,quadratic',
+        '1,exponential',
+        # '2,uniform,4',
+        # '2,gaussian,4',
+        # '2,quadratic,4',
+        # '2,exponential,4',
     ]
 
     # data = generate_data(args.samplesz, args.ndims)
