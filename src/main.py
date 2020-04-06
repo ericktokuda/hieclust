@@ -1087,7 +1087,7 @@ def plot_parallel(df, colours, ax, fig):
     ax.yaxis.grid(False)
     ax.xaxis.set_ticks_position('top')
     ax.set_yticks([0, 100, 200, 300, 400, 500])
-    ax.tick_params(axis='y', which='minor', labelsize=25)
+    ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
     ax.set_ylabel('Accumulated error', fontsize=25)
@@ -1109,7 +1109,7 @@ def plot_parallel(df, colours, ax, fig):
     # axicon.set_yticks([])
 
     trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
-    line = Line2D([0, .98], [-.02, -.02], color='k', transform=trans)
+    line = Line2D([0, .98], [-.05, -.05], color='k', transform=trans)
     plt.tight_layout()
     fig.lines.append(line)
 
@@ -1142,7 +1142,7 @@ def plot_parallel_all(df, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.5)
+    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.6)
     for i, dim in enumerate(dims):
         plt.text(-0.1, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
@@ -1248,16 +1248,14 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
     plt.savefig(pjoin(outdir, 'meths_pairwise.pdf'))
     return corr
 
+##########################################################
 def plot_meths_heatmap(methscorr, linkagemeths, outdir):
     info(inspect.stack()[0][3] + '()')
 
     n = methscorr.shape[0]
-    for j in range(n):
-        for i in range(j+1, n):
-            methscorr[i, j] = 1
 
     fig, ax = plt.subplots()
-    im = ax.imshow(methscorr, cmap='YlGn')
+    im = ax.imshow(methscorr, cmap='coolwarm', vmin=-1, vmax=1)
 
     ax.set_xticks(np.arange(len(linkagemeths)))
     ax.set_yticks(np.arange(len(linkagemeths)))
@@ -1283,7 +1281,7 @@ def plot_meths_heatmap(methscorr, linkagemeths, outdir):
     plt.savefig(pjoin(outdir, 'meths_heatmap.pdf'))
 
 ##########################################################
-def plot_graph(methscorr_in, linkagemeths, outdir):
+def plot_graph(methscorr_in, linkagemeths, palettehex, outdir):
     """Plot the graph according to the weights.
     However, this is an ill posed problem because
     the weights would need to satisfy the triangle
@@ -1316,13 +1314,18 @@ def plot_graph(methscorr_in, linkagemeths, outdir):
             todelete.append(i)
     g.delete_edges(todelete)
 
-    info(g.es['weight'])
     g.vs['label'] = linkagemeths
     edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
     # l = igraph.GraphBase.layout_fruchterman_reingold(weights=g.es['weight'])
+    palette = hex2rgb(palettehex, alpha=.8)
+    # print(palette[0])
     l = g.layout('fr', weights=g.es['weight'])
     igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout=l,
-                edge_label=edgelabels, edge_width=widths)
+                edge_label=edgelabels, edge_width=widths,
+                edge_label_size=15,
+                vertex_color=palettehex[0], vertex_frame_width=0,
+                vertex_label_size=20,
+                margin=50)
 
 ##########################################################
 def main():
@@ -1347,6 +1350,7 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
     validkeys = [
         '1,uniform',
         '1,gaussian',
@@ -1376,12 +1380,11 @@ def main():
     df = df[df.distrib.isin(validkeys)]
 
     plot_parallel_all(df, args.outdir)
-    return
     # count_method_ranking(df, linkagemeths, 'single', args.outdir)
     # return
     methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
     plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
-    plot_graph(methscorr, linkagemeths, args.outdir)
+    plot_graph(methscorr, linkagemeths, palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
