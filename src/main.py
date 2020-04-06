@@ -920,6 +920,51 @@ def plot_article_uniform_distribs_scale(palette, outdir):
     export_individual_axis(ax, fig, ['2,uniform,rad0.9'], outdir, 0.3, 'points_')
 
 ##########################################################
+def plot_article_gaussian_distribs_scale(palette, outdir):
+    info(inspect.stack()[0][3] + '()')
+    samplesz = 600
+    ndims = 2
+
+    mus = np.ones((2, ndims))*.7
+    mus[1, :] *= -1
+    covs = np.array([np.eye(2)*.15] * 2)
+    coords2 = np.ndarray((0, 2))
+    # coords1, _ = generate_gaussian(samplesz, ndims, mus, rs)
+    coords1, _ = generate_multivariate_normal(samplesz, ndims, mus, covs)
+    # coords2 = generate_uniform(20, ndims, np.array([[.6, .4], [1, .6]]),
+                               # np.ones(2) * .2)
+    coords = np.concatenate((coords1, coords2))
+    # print('coords.shape:{}'.format(coords.shape))
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
+    # plot_scatter(coords, ax[0, 0], palette[1])
+    ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
+
+    mycolour = 'k'
+    c = (0, 0)
+    r = 2
+    m = r * np.sqrt(2) / 2
+    circle = Circle(c, r, facecolor='none',
+                    edgecolor=mycolour, linestyle='-',
+                    linewidth=2, alpha=0.5,
+                    )
+    ax[0, 0].add_patch(circle)
+    origin = np.zeros(2)
+    # ax[0, 0].plot([0, r], [0, 0], 'k--', linewidth=2, alpha=.5)
+    ax[0, 0].quiver(origin, origin, [-1.41], [1.41], color=mycolour, width=.008,
+              angles='xy', scale_units='xy', scale=1, alpha=.3,
+              headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+    
+    nnoise = 60
+    noisex = np.random.rand(nnoise) * 4 + (-2)
+    noisey = np.random.rand(nnoise) * 4 + (-2)
+    ax[0, 0].scatter(noisex, noisey, c=palette[1]) # noise points
+    ax[0, 0].scatter([0], [0], c=palette[1]) # noise points
+    ax[0, 0].set_xticks([-2.0, -1.0, 0, +1.0, +2.0])
+    ax[0, 0].set_yticks([-2.0, -1.0, 0, +1.0, +2.0])
+
+    export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
+
 def generate_dendrogram_single(data, metric, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
@@ -1323,6 +1368,7 @@ def main():
     # plot_contours(validkeys, args.outdir)
     # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     
     df = pd.read_csv(args.resultspath, sep='|')
