@@ -1087,16 +1087,17 @@ def plot_parallel(df, colours, ax, fig):
     ax.yaxis.grid(False)
     ax.xaxis.set_ticks_position('top')
     ax.set_yticks([0, 100, 200, 300, 400, 500])
+    ax.tick_params(axis='y', which='minor', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
-    ax.set_ylabel('Accumulated error', fontsize=15)
+    ax.set_ylabel('Accumulated error', fontsize=25)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
 
     ax.legend(
-        fontsize=20,
-        loc=[.85, .43],
+        fontsize=25,
+        loc=[.82, .28],
     )
 
     ax.tick_params(bottom="off")
@@ -1118,7 +1119,7 @@ def include_icons(iconpaths, fig):
         # sign = 0.015*(-1) ** i
         sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.17+i*.106, 0.79+sign, 0.07, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.17+i*.106, 0.79+sign, 0.06, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
@@ -1131,7 +1132,7 @@ def plot_parallel_all(df, outdir):
     dims = np.unique(df.dim)
 
     figscale = 5
-    fig, axs = plt.subplots(len(dims), 1, figsize=(3.5*figscale, len(dims)*figscale),
+    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, 5*figscale),
                             squeeze=False)
 
     for i, dim in enumerate(dims):
@@ -1351,10 +1352,10 @@ def main():
         '1,gaussian',
         '1,quadratic',
         '1,exponential',
-        # '2,uniform,4',
-        # '2,gaussian,4',
-        # '2,quadratic,4',
-        # '2,exponential,4',
+        '2,uniform,4',
+        '2,gaussian,4',
+        '2,quadratic,4',
+        '2,exponential,4',
     ]
 
     # data = generate_data(args.samplesz, args.ndims)
@@ -1368,13 +1369,14 @@ def main():
     # plot_contours(validkeys, args.outdir)
     # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, args.outdir)
     # plot_article_quiver(palettehex, args.outdir)
     
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
-    # plot_parallel_all(df, args.outdir)
+    plot_parallel_all(df, args.outdir)
+    return
     # count_method_ranking(df, linkagemeths, 'single', args.outdir)
     # return
     methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
