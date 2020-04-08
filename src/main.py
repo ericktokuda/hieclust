@@ -73,7 +73,7 @@ def fancy_dendrogram(*args, **kwargs):
             plt.axhline(y=max_d, c='k')
     return ddata
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
+def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
     given by @lthresh
 
@@ -86,7 +86,9 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
     """
 
     dists = z[:, 2]
-    dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
+    # dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
+    maxh = np.max(dists)
+    dists = dists / maxh
     z[:, 2] = dists
     n = z.shape[0] + 1
     colors = n * (n - 1) * ['k']
@@ -99,13 +101,10 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
         g = np.concatenate((g, [clustid]))
         for ff in g: colors[ff]  = c
 
-    L = z[-1, 2]
-    lineh = (L - lthresh) / L
-
     epsilon = 0.0000
     dendrogram(
         z,
-        color_threshold=lthresh+epsilon,
+        color_threshold=avgheight+epsilon,
         # truncate_mode='level',
         truncate_mode=None,
         # p=10,
@@ -117,8 +116,10 @@ def plot_dendrogram(z, linkagemeth, ax, lthresh, clustids, palette):
         ax=ax,
         link_color_func=lambda k: colors[k],
     )
-    if lthresh > 0:
-        ax.axhline(y=lineh, linestyle='--')
+    if avgheight > 0:
+        ax.axhline(y=avgheight/maxh, linestyle='--')
+    if maxheight > 0:
+        ax.axhline(y=maxheight/maxh, linestyle='--', c='b', alpha=.5)
     return colors[:n]
 
 ##########################################################
@@ -288,6 +289,7 @@ def generate_data(samplesz, ndims):
 
     k = '1,exponential'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
+    # return data, partsz
 
     mus = np.ones((2, ndims))
     mus[0, :] *= -1
@@ -311,7 +313,7 @@ def generate_data(samplesz, ndims):
         data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
 
-    return data
+    return data, partsz
     
 ##########################################################
 def plot_points(data, outdir):
@@ -450,7 +452,23 @@ def is_child(parent, child, linkageret):
     else: return False
 
 ##########################################################
-def filter_clustering(data, linkageret, minclustsize, minnclusters):
+def get_max_distance(linkageret, outliergroupsize, pruned=False):
+    if pruned:
+        tree = scipy.cluster.hierarchy.to_tree(linkageret)
+        n = tree.count
+        m = tree.dist
+        for i in range(n-1):
+            if tree.left and tree.left.count <= outliergroupsize:
+                tree = tree.right
+            elif tree.right and tree.right.count <= outliergroupsize:
+                tree = tree.left
+            else:
+                break
+        return tree.dist
+    else:
+        return linkageret[-1, 2]
+##########################################################
+def find_clusters(data, linkageret, minclustsize, minnclusters):
     """Compute relevance according to Luc's method
 
     Args:
@@ -465,7 +483,8 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
-    L = linkageret[-1, 2]
+    outliergroupsize = .05 * n
+    L = get_max_distance(linkageret, outliergroupsize, pruned=True)
 
     counts = linkageret[:, 3]
 
@@ -485,8 +504,7 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
 
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
-        rel = (L - l) / L
-        return clustids, rel
+        return clustids, l, L
         
 
     m = np.max(clustids)
@@ -502,15 +520,13 @@ def filter_clustering(data, linkageret, minclustsize, minnclusters):
             break
 
     l = linkageret[parent - n, 2]
-    acc = 0
+    avgheight = 0
     for cl in clustids:
-        acc += linkageret[cl - n, 2]
-
-    acc /= len(clustids)
-    rel = (L - acc) / L
+        avgheight += linkageret[cl - n, 2]
+    avgheight /= len(clustids) # average of the heights
 
     clustids = sorted(clustids)[:2]
-    return clustids, rel
+    return clustids, avgheight, L
 
 ##########################################################
 def compute_gtruth_vectors(data, nrealizations):
@@ -621,6 +637,12 @@ def hex2rgb(hexcolours, alpha=None):
     return rgbcolours
 
 ##########################################################
+def calculate_relevance(avgheight, maxdist):
+    if avgheight > maxdist:
+        return avgheight
+    else:
+        return (maxdist - avgheight) / maxdist
+##########################################################
 def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                                    palettehex, outdir):
     info('Computing relevances...')
@@ -649,7 +671,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
 
     for r in range(nrealizations): # Compute relevances
         info('realization {:02d}'.format(r))
-        data = generate_data(samplesz, ndims)
+        data, _ = generate_data(samplesz, ndims)
 
         for j, linkagemeth in enumerate(linkagemeths):
             if linkagemeth == 'centroid' or linkagemeth == 'median' or linkagemeth == 'ward':
@@ -668,8 +690,9 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
 
                 inc = inconsistent(z)
 
-                clustids, rel = filter_clustering(data[distrib], z, minclustsize,
-                                                        minnclusters)
+                clustids, avgheight, maxdist = find_clusters(data[distrib], z,
+                        minclustsize, minnclusters)
+                rel = calculate_relevance(avgheight, maxdist)
                 clustids = np.array(clustids)
                 incinds = clustids - samplesz
                 rels[distrib][linkagemeth][len(incinds)-1].append(rel)
@@ -692,7 +715,6 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
         diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
         diffnorms[k] = {}
 
-    # diff = dict((el, np.zeros(2)) for el in data.keys())
     for i, distrib in enumerate(data):
         for j, linkagemeth in enumerate(linkagemeths):
             diff[distrib][linkagemeth] = gtruths[distrib] - v[distrib][linkagemeth]
@@ -849,9 +871,10 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
             else:
                 metric = metricarg
             z = linkage(data[k], l, metric)
-            clustids, rel = filter_clustering(data[k], z, minclustsize, minnclusters)
+            clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize, minnclusters)
+            rel = calculate_relevance(avgheight, maxdist)
             # plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
-            plot_dendrogram(z, l, ax[i, j+1], 0, clustids, ['k']*10)
+            plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10)
 
             if len(clustids) == 1:
                 text = 'rel:({:.3f}, 0.0)'.format(rel)
@@ -888,7 +911,6 @@ def plot_article_uniform_distribs_scale(palette, outdir):
     # coords2 = generate_uniform(20, ndims, np.array([[.6, .4], [1, .6]]),
                                # np.ones(2) * .2)
     coords = np.concatenate((coords1, coords2))
-    # print('coords.shape:{}'.format(coords.shape))
 
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     # plot_scatter(coords, ax[0, 0], palette[1])
@@ -934,7 +956,6 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     # coords2 = generate_uniform(20, ndims, np.array([[.6, .4], [1, .6]]),
                                # np.ones(2) * .2)
     coords = np.concatenate((coords1, coords2))
-    # print('coords.shape:{}'.format(coords.shape))
 
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     # plot_scatter(coords, ax[0, 0], palette[1])
@@ -965,7 +986,8 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
 
     export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
-def generate_dendrogram_single(data, metric, palettehex, outdir):
+##########################################################
+def plot_dendrogram_clusters(data, linkagemeth, metric, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     minrelsize = 0.3
@@ -977,9 +999,10 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
     ndistribs = len(data.keys())
 
     nsubplots = nrows * ncols
+    figscale = 5
 
     if ndims == 3:
-        fig = plt.figure(figsize=(ncols*5, nrows*5))
+        fig = plt.figure(figsize=(ncols*figscale, nrows*figscale))
         ax = np.array([[None]*ncols]*nrows)
 
         for subplotidx in range(nsubplots):
@@ -991,16 +1014,19 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
             else:
                 ax[i, j] = fig.add_subplot(nrows, ncols, subplotidx+1)
     else:
-        fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*5), squeeze=False)
+        fig, ax = plt.subplots(nrows, ncols,
+                figsize=(ncols*figscale, nrows*figscale), squeeze=False)
 
     for i, k in enumerate(data):
         nclusters = int(k.split(',')[0])
 
-        z = linkage(data[k], 'single', metric)
-        clustids, rel = filter_clustering(data[k], z, minclustsize,
-                                                minnclusters)
-        colours = plot_dendrogram(z, 'single', ax[i, 1], rel, clustids, palettehex)
+        z = linkage(data[k], linkagemeth, metric)
+        clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize, minnclusters)
+        rel = calculate_relevance(avgheight, maxdist)
+        colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight, maxdist, clustids,
+                palettehex)
         # plot_scatter(data[k], ax[i, 0], colours)
+        # ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
 
         if len(clustids) == 1:
@@ -1022,7 +1048,7 @@ def generate_dendrogram_single(data, metric, palettehex, outdir):
                  format(samplesz, minnclusters, minclustsize),
                  y=.92, fontsize=32)
 
-    plt.savefig(pjoin(outdir, '{}d-single.pdf'.format(ndims)))
+    plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -1137,7 +1163,6 @@ def plot_parallel_all(df, outdir):
 
     for i, dim in enumerate(dims):
         slice = df[df.dim == dim]
-        # print('slice:{}'.format(slice))
         slice = slice.set_index('distrib')
         plot_parallel(slice, colours, axs[i, 0], fig)
 
@@ -1318,7 +1343,6 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, outdir):
     edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
     # l = igraph.GraphBase.layout_fruchterman_reingold(weights=g.es['weight'])
     palette = hex2rgb(palettehex, alpha=.8)
-    # print(palette[0])
     l = g.layout('fr', weights=g.es['weight'])
     igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout=l,
                 edge_label=edgelabels, edge_width=widths,
@@ -1362,11 +1386,12 @@ def main():
         '2,exponential,4',
     ]
 
-    # data = generate_data(args.samplesz, args.ndims)
+    data, _ = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
     # return
     # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    # generate_dendrogram_single(data, metric, palettehex, args.outdir)
+    plot_dendrogram_clusters(data, 'single', metric, palettehex, args.outdir)
+    return
     # generate_relevance_distrib_all(data, metric, linkagemeths,
                                    # args.nrealizations, palettehex,
                                    # args.outdir)
@@ -1379,7 +1404,7 @@ def main():
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
-    plot_parallel_all(df, args.outdir)
+    # plot_parallel_all(df, args.outdir)
     # count_method_ranking(df, linkagemeths, 'single', args.outdir)
     # return
     methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
