@@ -452,8 +452,8 @@ def is_child(parent, child, linkageret):
     else: return False
 
 ##########################################################
-def get_max_distance(linkageret, outliergroupsize, pruned=False):
-    if pruned:
+def get_max_distance(linkageret, outliersratio):
+    if outliersratio > 0:
         tree = scipy.cluster.hierarchy.to_tree(linkageret)
         n = tree.count
         m = tree.dist
@@ -468,7 +468,7 @@ def get_max_distance(linkageret, outliergroupsize, pruned=False):
     else:
         return linkageret[-1, 2]
 ##########################################################
-def find_clusters(data, linkageret, minclustsize, minnclusters):
+def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     """Compute relevance according to Luc's method
 
     Args:
@@ -483,8 +483,7 @@ def find_clusters(data, linkageret, minclustsize, minnclusters):
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
-    outliergroupsize = .05 * n
-    L = get_max_distance(linkageret, outliergroupsize, pruned=True)
+    L = get_max_distance(linkageret, outliersratio)
 
     counts = linkageret[:, 3]
 
@@ -644,7 +643,7 @@ def calculate_relevance(avgheight, maxdist):
         return (maxdist - avgheight) / maxdist
 ##########################################################
 def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
-                                   palettehex, outdir):
+        outliersratio, palettehex, outdir):
     info('Computing relevances...')
     s = 500
     cmap = 'Blues'
@@ -691,7 +690,7 @@ def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
                 inc = inconsistent(z)
 
                 clustids, avgheight, maxdist = find_clusters(data[distrib], z,
-                        minclustsize, minnclusters)
+                        minclustsize, minnclusters, outliersratio)
                 rel = calculate_relevance(avgheight, maxdist)
                 clustids = np.array(clustids)
                 incinds = clustids - samplesz
@@ -831,7 +830,8 @@ def test_inconsistency():
         plt.clf()
 
 ##########################################################
-def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
+def generate_dendrograms_all(data, metricarg, linkagemeths, pruningparam,
+        palette, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     minrelsize = 0.3
@@ -871,7 +871,8 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, palette, outdir):
             else:
                 metric = metricarg
             z = linkage(data[k], l, metric)
-            clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize, minnclusters)
+            clustids, avgheight, maxdist = find_clusters(data[k], z,
+                    minclustsize, minnclusters, pruningparam)
             rel = calculate_relevance(avgheight, maxdist)
             # plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
             plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10)
@@ -987,10 +988,11 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
 ##########################################################
-def plot_dendrogram_clusters(data, linkagemeth, metric, palettehex, outdir):
+def plot_dendrogram_clusters(data, linkagemeth, metric, pruningparam,
+        palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
-    minrelsize = 0.3
+    minrelsize = 0.5
     nrows = len(data.keys())
     ncols = 2
     samplesz = data[list(data.keys())[0]].shape[0]
@@ -1021,7 +1023,8 @@ def plot_dendrogram_clusters(data, linkagemeth, metric, palettehex, outdir):
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
-        clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize, minnclusters)
+        clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize,
+                minnclusters, pruningparam)
         rel = calculate_relevance(avgheight, maxdist)
         colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight, maxdist, clustids,
                 palettehex)
@@ -1033,20 +1036,16 @@ def plot_dendrogram_clusters(data, linkagemeth, metric, palettehex, outdir):
             text = 'rel: ({:.3f}, 0)'.format(rel)
         else:
             text = 'rel: (0, {:.3f})'.format(rel)
-        plt.text(0.7, 0.9, text,
-        # plt.text(0.7, 0.9, '{}, rel:{:.3f}'.format(len(clustids), rel),
-                 horizontalalignment='center', verticalalignment='center',
-                 fontsize=20, transform = ax[i, 1].transAxes)
-
-    # for ax_, col in zip(ax[0, 1:], linkagemeths):
-        # ax_.set_title(col, size=36)
+        # plt.text(0.7, 0.9, text,
+                 # horizontalalignment='center', verticalalignment='center',
+                 # fontsize=20, transform = ax[i, 1].transAxes)
 
     for i, k in enumerate(data):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-    fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
-                 format(samplesz, minnclusters, minclustsize),
-                 y=.92, fontsize=32)
+    # fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
+                 # format(samplesz, minnclusters, minclustsize),
+                 # y=.92, fontsize=32)
 
     plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
 
@@ -1374,6 +1373,8 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # pruningparam = 0.02
+    pruningparam = -1
 
     validkeys = [
         '1,uniform',
@@ -1388,19 +1389,21 @@ def main():
 
     data, _ = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
-    # return
-    # generate_dendrograms_all(data, metric, linkagemeths, palettehex, args.outdir)
-    plot_dendrogram_clusters(data, 'single', metric, palettehex, args.outdir)
+    # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
+            # palettehex, args.outdir)
+    plot_dendrogram_clusters(data, 'single', metric, pruningparam,
+            palettehex, args.outdir)
     return
-    # generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   # args.nrealizations, palettehex,
-                                   # args.outdir)
-    # plot_contours(validkeys, args.outdir)
-    # plot_contours(validkeys, args.outdir, True)
-    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    # plot_article_gaussian_distribs_scale(palettehex, args.outdir)
-    # plot_article_quiver(palettehex, args.outdir)
+    generate_relevance_distrib_all(data, metric, linkagemeths,
+                                   args.nrealizations, pruningparam, palettehex,
+                                   args.outdir)
+    plot_contours(validkeys, args.outdir)
+    plot_contours(validkeys, args.outdir, True)
+    plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
+    plot_article_quiver(palettehex, args.outdir)
     
+    return
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
