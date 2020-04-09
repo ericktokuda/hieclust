@@ -457,10 +457,11 @@ def get_max_distance(linkageret, outliersratio):
         tree = scipy.cluster.hierarchy.to_tree(linkageret)
         n = tree.count
         m = tree.dist
+        noutliers = outliersratio * n
         for i in range(n-1):
-            if tree.left and tree.left.count <= outliergroupsize:
+            if tree.left and tree.left.count <= noutliers:
                 tree = tree.right
-            elif tree.right and tree.right.count <= outliergroupsize:
+            elif tree.right and tree.right.count <= noutliers:
                 tree = tree.left
             else:
                 break
@@ -1373,8 +1374,9 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    # pruningparam = 0.02
-    pruningparam = -1
+    pruningparam = 0.02
+    info('pruningparam:{}'.format(pruningparam))
+    # pruningparam = -1
 
     validkeys = [
         '1,uniform',
@@ -1391,8 +1393,10 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
+    # return
     # plot_dendrogram_clusters(data, 'single', metric, pruningparam,
             # palettehex, args.outdir)
+    # return
     find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
             pruningparam, palettehex, args.outdir)
     return
