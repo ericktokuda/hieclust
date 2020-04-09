@@ -546,14 +546,14 @@ def compute_gtruth_vectors(data, nrealizations):
     return gtruths
 
 ##########################################################
-def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix=''):
+def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
     n = ax.shape[0]*ax.shape[1]
     for k in range(n):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
         extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.png'),
+        fig.savefig(pjoin(outdir, prefix + labels[k] + '.' + fmt),
                       bbox_inches=extent.expanded(1+pad, 1+pad))
 
 ##########################################################
@@ -642,7 +642,7 @@ def calculate_relevance(avgheight, maxdist):
     else:
         return (maxdist - avgheight) / maxdist
 ##########################################################
-def generate_relevance_distrib_all(data, metricarg, linkagemeths, nrealizations,
+def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
         outliersratio, palettehex, outdir):
     info('Computing relevances...')
     s = 500
@@ -1296,12 +1296,12 @@ def plot_meths_heatmap(methscorr, linkagemeths, outdir):
                            ha="center", va="center", color="k")
 
 
-    ax.set_title("Pairwise pearson correlation between linkage methods")
+    # ax.set_title("Pairwise pearson correlation between linkage methods")
 
     # Create colorbar
-    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.set_ylabel('pearson corr.', rotation=-90, va="bottom")
-    fig.tight_layout()
+    fig.tight_layout(pad=0)
     plt.savefig(pjoin(outdir, 'meths_heatmap.pdf'))
 
 ##########################################################
@@ -1391,12 +1391,11 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
-    plot_dendrogram_clusters(data, 'single', metric, pruningparam,
-            palettehex, args.outdir)
+    # plot_dendrogram_clusters(data, 'single', metric, pruningparam,
+            # palettehex, args.outdir)
+    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+            pruningparam, palettehex, args.outdir)
     return
-    generate_relevance_distrib_all(data, metric, linkagemeths,
-                                   args.nrealizations, pruningparam, palettehex,
-                                   args.outdir)
     plot_contours(validkeys, args.outdir)
     plot_contours(validkeys, args.outdir, True)
     plot_article_uniform_distribs_scale(palettehex, args.outdir)
