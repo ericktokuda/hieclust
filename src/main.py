@@ -131,7 +131,9 @@ def get_points_inside_circle(x, c0, r):
 
 ##########################################################
 def get_random_sample(x, npartitions, partitionsz):
-    idx = np.random.randint(x.shape[0], size=partitionsz)
+    # idx = np.random.randint(x.shape[0], size=partitionsz)
+    idx = np.random.choice(range(x.shape[0]), size=npartitions*partitionsz,
+            replace=False)
     counts = np.zeros(npartitions, dtype=int)
 
     for i in range(npartitions):
@@ -156,7 +158,6 @@ def generate_uniform(samplesz, ndims, mus, rads):
             aux2 = np.random.rand(5*samplesz, ndims) * range_ + min_
             aux2 = get_points_inside_circle(aux2, mus[i], rads[i])
             aux = np.concatenate((aux, aux2))
-
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
 
     return get_random_sample(x, ncenters, samplesz)
@@ -452,8 +453,9 @@ def is_child(parent, child, linkageret):
     else: return False
 
 ##########################################################
-def get_max_distance(linkageret, outliersratio):
+def get_outermost_points(linkageret, outliersratio):
     if outliersratio > 0:
+        outliers = []
         tree = scipy.cluster.hierarchy.to_tree(linkageret)
         n = tree.count
         m = tree.dist
@@ -461,13 +463,16 @@ def get_max_distance(linkageret, outliersratio):
         for i in range(n-1):
             if tree.left and tree.left.count <= noutliers:
                 tree = tree.right
+                leaves, _ = get_descendants(linkageret, n, tree.left.id)
+                outliers.extend(leaves)
             elif tree.right and tree.right.count <= noutliers:
                 tree = tree.left
             else:
                 break
-        return tree.dist
+        return outliers, tree.dist
     else:
-        return linkageret[-1, 2]
+        return [], linkageret[-1, 2]
+
 ##########################################################
 def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     """Compute relevance according to Luc's method
@@ -484,7 +489,8 @@ def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
-    L = get_max_distance(linkageret, outliersratio)
+    outliers, L = get_outermost_points(linkageret, outliersratio)
+    print(outliers)
 
     counts = linkageret[:, 3]
 
@@ -989,17 +995,17 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
 ##########################################################
-def plot_dendrogram_clusters(data, linkagemeth, metric, pruningparam,
+def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     minrelsize = 0.5
-    nrows = len(data.keys())
+    nrows = len(validkeys)
+    ndistribs = nrows
     ncols = 2
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
     minclustsize = int(minrelsize * samplesz)
-    ndistribs = len(data.keys())
 
     nsubplots = nrows * ncols
     figscale = 5
@@ -1020,10 +1026,12 @@ def plot_dendrogram_clusters(data, linkagemeth, metric, pruningparam,
         fig, ax = plt.subplots(nrows, ncols,
                 figsize=(ncols*figscale, nrows*figscale), squeeze=False)
 
-    for i, k in enumerate(data):
+    for i, k in enumerate(validkeys):
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
+
+
         clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize,
                 minnclusters, pruningparam)
         rel = calculate_relevance(avgheight, maxdist)
@@ -1041,14 +1049,19 @@ def plot_dendrogram_clusters(data, linkagemeth, metric, pruningparam,
                  # horizontalalignment='center', verticalalignment='center',
                  # fontsize=20, transform = ax[i, 1].transAxes)
 
-    for i, k in enumerate(data):
+    for i, k in enumerate(validkeys):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
     # fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
                  # format(samplesz, minnclusters, minclustsize),
                  # y=.92, fontsize=32)
 
+    plt.tight_layout(pad=1)
     plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
+
+    # leaves, links = get_descendants(z, samplesz, samplesz + 2)
+    # print(z)
+    # print(len(leaves), len(links))
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -1379,14 +1392,14 @@ def main():
     # pruningparam = -1
 
     validkeys = [
-        '1,uniform',
-        '1,gaussian',
-        '1,quadratic',
+        # '1,uniform',
+        # '1,gaussian',
+        # '1,quadratic',
         '1,exponential',
-        '2,uniform,4',
-        '2,gaussian,4',
-        '2,quadratic,4',
-        '2,exponential,4',
+        # '2,uniform,4',
+        # '2,gaussian,4',
+        # '2,quadratic,4',
+        # '2,exponential,4',
     ]
 
     data, _ = generate_data(args.samplesz, args.ndims)
@@ -1394,12 +1407,12 @@ def main():
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
     # return
-    # plot_dendrogram_clusters(data, 'single', metric, pruningparam,
-            # palettehex, args.outdir)
-    # return
-    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
-            pruningparam, palettehex, args.outdir)
+    plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
+            palettehex, args.outdir)
     return
+    # find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+            # pruningparam, palettehex, args.outdir)
+    # return
     plot_contours(validkeys, args.outdir)
     plot_contours(validkeys, args.outdir, True)
     plot_article_uniform_distribs_scale(palettehex, args.outdir)
