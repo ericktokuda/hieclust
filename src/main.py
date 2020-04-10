@@ -654,7 +654,7 @@ def plot_contours(labels, outdir, icons=False):
                 # ax[i, j].set_xticks([])
 
     if icons:
-        export_individual_axis(ax, fig, labels, outdir, 0, 'icon_')
+        export_individual_axis(ax, fig, labels, outdir, 0, 'icon_', 'png')
     else:
         export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
@@ -1029,7 +1029,7 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
-    minrelsize = 0.5
+    minrelsize = 0.3
     nrows = len(validkeys)
     ndistribs = nrows
     ncols = 2
@@ -1086,6 +1086,11 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
 
     plt.tight_layout(pad=1)
     plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
+    labels = []
+    for v in validkeys:
+        labels.append('A_' + v)
+        labels.append('B_' + v)
+    export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf')
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -1429,29 +1434,25 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
-    # return
     plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
             palettehex, args.outdir)
     return
     # find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
             # pruningparam, palettehex, args.outdir)
-    # return
-    plot_contours(validkeys, args.outdir)
-    plot_contours(validkeys, args.outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
-    plot_article_quiver(palettehex, args.outdir)
+    # plot_contours(validkeys, args.outdir)
+    # plot_contours(validkeys, args.outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, args.outdir)
+    # plot_article_quiver(palettehex, args.outdir)
     
-    return
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
     # plot_parallel_all(df, args.outdir)
     # count_method_ranking(df, linkagemeths, 'single', args.outdir)
-    # return
-    methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
-    plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
-    plot_graph(methscorr, linkagemeths, palettehex, args.outdir)
+    # methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
+    # plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
+    # plot_graph(methscorr, linkagemeths, palettehex, args.outdir)
     # test_inconsistency()
 
 ##########################################################
