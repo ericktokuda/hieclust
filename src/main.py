@@ -463,10 +463,14 @@ def get_outermost_points(linkageret, outliersratio):
         for i in range(n-1):
             if tree.left and tree.left.count <= noutliers:
                 tree = tree.right
-                leaves, _ = get_descendants(linkageret, n, tree.left.id)
-                outliers.extend(leaves)
+                if tree.left:
+                    leaves, _ = get_descendants(linkageret, n, tree.left.id)
+                    outliers.extend(leaves)
             elif tree.right and tree.right.count <= noutliers:
                 tree = tree.left
+                if tree.right:
+                    leaves, _ = get_descendants(linkageret, n, tree.right.id)
+                    outliers.extend(leaves)
             else:
                 break
         return outliers, tree.dist
@@ -490,7 +494,6 @@ def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
     outliers, L = get_outermost_points(linkageret, outliersratio)
-    print(outliers)
 
     counts = linkageret[:, 3]
 
@@ -1392,14 +1395,14 @@ def main():
     # pruningparam = -1
 
     validkeys = [
-        # '1,uniform',
-        # '1,gaussian',
-        # '1,quadratic',
+        '1,uniform',
+        '1,gaussian',
+        '1,quadratic',
         '1,exponential',
-        # '2,uniform,4',
-        # '2,gaussian,4',
-        # '2,quadratic,4',
-        # '2,exponential,4',
+        '2,uniform,4',
+        '2,gaussian,4',
+        '2,quadratic,4',
+        '2,exponential,4',
     ]
 
     data, _ = generate_data(args.samplesz, args.ndims)
@@ -1407,12 +1410,12 @@ def main():
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
     # return
-    plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
-            palettehex, args.outdir)
-    return
-    # find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
-            # pruningparam, palettehex, args.outdir)
+    # plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
+            # palettehex, args.outdir)
     # return
+    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+            pruningparam, palettehex, args.outdir)
+    return
     plot_contours(validkeys, args.outdir)
     plot_contours(validkeys, args.outdir, True)
     plot_article_uniform_distribs_scale(palettehex, args.outdir)
