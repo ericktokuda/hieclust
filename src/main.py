@@ -91,7 +91,7 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
     dists = dists / maxh
     z[:, 2] = dists
     n = z.shape[0] + 1
-    colors = n * (n - 1) * ['k']
+    colors = (2 * n - 1) * ['k']
     # vividcolors = ['b', 'g', 'r', 'c', 'm']
     vividcolors = palette.copy()
 
@@ -102,8 +102,13 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
         for ff in g: colors[ff]  = c
 
     c = vividcolors.pop()
+    ancestors = []
     for outlier in outliers:
-        colors[outlier]  = 'b'
+        ancestors.extend(get_ancestors(outlier, z))
+    ancestors.extend(outliers)
+
+    for anc in ancestors:
+        colors[anc]  = 'b'
 
     epsilon = 0.0000
     dendrogram(
@@ -455,6 +460,24 @@ def is_child(parent, child, linkageret):
     leaves, links = get_descendants(linkageret, nleaves, parent)
     if (child in leaves) or (child in links): return True
     else: return False
+
+##########################################################
+def get_parent(child, linkageret):
+    zind = np.where(linkageret[:, 0:2] == child)[0]
+    if len(zind) == 0:
+        return None
+    else:
+        return zind[0] + len(linkageret) +1
+
+##########################################################
+def get_ancestors(child, linkageret):
+    ancestors = []
+    while True:
+        ancestor = get_parent(child, linkageret)
+        if ancestor == None: break
+        ancestors.append(ancestor)
+        child = ancestor
+    return ancestors
 
 ##########################################################
 def get_outermost_points(linkageret, outliersratio):
@@ -1037,8 +1060,6 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
-
-
         clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, minclustsize,
                 minnclusters, pruningparam)
         rel = calculate_relevance(avgheight, maxdist)
@@ -1065,10 +1086,6 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
 
     plt.tight_layout(pad=1)
     plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
-
-    # leaves, links = get_descendants(z, samplesz, samplesz + 2)
-    # print(z)
-    # print(len(leaves), len(links))
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -1394,19 +1411,18 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    pruningparam = 0.05
+    pruningparam = 0.02
     info('pruningparam:{}'.format(pruningparam))
-    # pruningparam = -1
 
     validkeys = [
         '1,uniform',
-        # '1,gaussian',
-        # '1,quadratic',
-        # '1,exponential',
-        # '2,uniform,4',
-        # '2,gaussian,4',
-        # '2,quadratic,4',
-        # '2,exponential,4',
+        '1,gaussian',
+        '1,quadratic',
+        '1,exponential',
+        '2,uniform,4',
+        '2,gaussian,4',
+        '2,quadratic,4',
+        '2,exponential,4',
     ]
 
     data, _ = generate_data(args.samplesz, args.ndims)
