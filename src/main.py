@@ -73,7 +73,7 @@ def fancy_dendrogram(*args, **kwargs):
             plt.axhline(y=max_d, c='k')
     return ddata
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette):
+def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette, outliers):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
     given by @lthresh
 
@@ -100,6 +100,10 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette)
         f, g = get_descendants(z, n, clustid)
         g = np.concatenate((g, [clustid]))
         for ff in g: colors[ff]  = c
+
+    c = vividcolors.pop()
+    for outlier in outliers:
+        colors[outlier]  = 'b'
 
     epsilon = 0.0000
     dendrogram(
@@ -462,15 +466,15 @@ def get_outermost_points(linkageret, outliersratio):
         noutliers = outliersratio * n
         for i in range(n-1):
             if tree.left and tree.left.count <= noutliers:
-                tree = tree.right
                 if tree.left:
                     leaves, _ = get_descendants(linkageret, n, tree.left.id)
                     outliers.extend(leaves)
+                tree = tree.right
             elif tree.right and tree.right.count <= noutliers:
-                tree = tree.left
                 if tree.right:
                     leaves, _ = get_descendants(linkageret, n, tree.right.id)
                     outliers.extend(leaves)
+                tree = tree.left
             else:
                 break
         return outliers, tree.dist
@@ -513,7 +517,7 @@ def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
 
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
-        return clustids, l, L
+        return clustids, l, L, outliers
         
 
     m = np.max(clustids)
@@ -535,7 +539,7 @@ def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     avgheight /= len(clustids) # average of the heights
 
     clustids = sorted(clustids)[:2]
-    return clustids, avgheight, L
+    return clustids, avgheight, L, outliers
 
 ##########################################################
 def compute_gtruth_vectors(data, nrealizations):
@@ -699,7 +703,7 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
 
                 inc = inconsistent(z)
 
-                clustids, avgheight, maxdist = find_clusters(data[distrib], z,
+                clustids, avgheight, maxdist, outliers = find_clusters(data[distrib], z,
                         minclustsize, minnclusters, outliersratio)
                 rel = calculate_relevance(avgheight, maxdist)
                 clustids = np.array(clustids)
@@ -881,11 +885,11 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, pruningparam,
             else:
                 metric = metricarg
             z = linkage(data[k], l, metric)
-            clustids, avgheight, maxdist = find_clusters(data[k], z,
+            clustids, avgheight, maxdist, outliers = find_clusters(data[k], z,
                     minclustsize, minnclusters, pruningparam)
             rel = calculate_relevance(avgheight, maxdist)
             # plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
-            plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10)
+            plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10, outliers)
 
             if len(clustids) == 1:
                 text = 'rel:({:.3f}, 0.0)'.format(rel)
@@ -1035,11 +1039,11 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         z = linkage(data[k], linkagemeth, metric)
 
 
-        clustids, avgheight, maxdist = find_clusters(data[k], z, minclustsize,
+        clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, minclustsize,
                 minnclusters, pruningparam)
         rel = calculate_relevance(avgheight, maxdist)
         colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight, maxdist, clustids,
-                palettehex)
+                palettehex, outliers)
         # plot_scatter(data[k], ax[i, 0], colours)
         # ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
@@ -1390,19 +1394,19 @@ def main():
     metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    pruningparam = 0.02
+    pruningparam = 0.05
     info('pruningparam:{}'.format(pruningparam))
     # pruningparam = -1
 
     validkeys = [
         '1,uniform',
-        '1,gaussian',
-        '1,quadratic',
-        '1,exponential',
-        '2,uniform,4',
-        '2,gaussian,4',
-        '2,quadratic,4',
-        '2,exponential,4',
+        # '1,gaussian',
+        # '1,quadratic',
+        # '1,exponential',
+        # '2,uniform,4',
+        # '2,gaussian,4',
+        # '2,quadratic,4',
+        # '2,exponential,4',
     ]
 
     data, _ = generate_data(args.samplesz, args.ndims)
@@ -1410,12 +1414,12 @@ def main():
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
     # return
-    # plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
-            # palettehex, args.outdir)
-    # return
-    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
-            pruningparam, palettehex, args.outdir)
+    plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
+            palettehex, args.outdir)
     return
+    # find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+            # pruningparam, palettehex, args.outdir)
+    # return
     plot_contours(validkeys, args.outdir)
     plot_contours(validkeys, args.outdir, True)
     plot_article_uniform_distribs_scale(palettehex, args.outdir)
