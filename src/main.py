@@ -679,15 +679,12 @@ def calculate_relevance(avgheight, maxdist):
     else:
         return (maxdist - avgheight) / maxdist
 ##########################################################
-def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
+def find_clusters_batch(data, metric, linkagemeths, nrealizations,
         outliersratio, palettehex, outdir):
+
     info('Computing relevances...')
-    s = 500
-    cmap = 'Blues'
     minnclusters = 2
     minrelsize = 0.3
-    nrows = len(data.keys())
-    ncols = 1
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
     minclustsize = int(minrelsize * samplesz)
@@ -696,11 +693,6 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
     info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
          format(nrealizations, samplesz, minnclusters, minclustsize))
 
-
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4),
-                           squeeze=False)
-
-    # plt.tight_layout(pad=5)
     rels = {}
     for k in data.keys():
         rels[k] = {l: [[], []] for l in linkagemeths}
@@ -710,11 +702,6 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
         data, _ = generate_data(samplesz, ndims)
 
         for j, linkagemeth in enumerate(linkagemeths):
-            if linkagemeth == 'centroid' or linkagemeth == 'median' or linkagemeth == 'ward':
-                metric = 'euclidean'
-            else:
-                metric = metricarg
-
             for i, distrib in enumerate(data):
                 try:
                     z = linkage(data[distrib], linkagemeth, metric)
@@ -724,28 +711,23 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
                     print(e)
                     raise(e)
 
-                inc = inconsistent(z)
-
-                clustids, avgheight, maxdist, outliers = find_clusters(data[distrib], z,
-                        minclustsize, minnclusters, outliersratio)
+                ret = find_clusters(data[distrib], z, minclustsize,
+                        minnclusters, outliersratio)
+                clustids, avgheight, maxdist, outliers = ret
                 rel = calculate_relevance(avgheight, maxdist)
                 clustids = np.array(clustids)
                 incinds = clustids - samplesz
                 rels[distrib][linkagemeth][len(incinds)-1].append(rel)
 
-    v = {}
-    for k in data.keys():
-        v[k] = {}
+    acc = {k: {} for k in data.keys()} # accumulated relevances
 
-    # v = dict((el, np.zeros(2)) for el in data.keys())
     for i, distrib in enumerate(data):
         for linkagemeth in linkagemeths:
-            v[distrib][linkagemeth] = np.zeros(2)
+            acc[distrib][linkagemeth] = np.zeros(2)
             for j, rel in enumerate(rels[distrib][linkagemeth]):
-                v[distrib][linkagemeth][j] = np.sum(rel)
+                acc[distrib][linkagemeth][j] = np.sum(rel)
 
-    # Compute the difference vector
-    diff = {}
+    diff = {} # difference to the ground-truth
     diffnorms = {}
     for k in data.keys():
         diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
@@ -753,7 +735,7 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
 
     for i, distrib in enumerate(data):
         for j, linkagemeth in enumerate(linkagemeths):
-            diff[distrib][linkagemeth] = gtruths[distrib] - v[distrib][linkagemeth]
+            diff[distrib][linkagemeth] = gtruths[distrib] - acc[distrib][linkagemeth]
             diffnorms[distrib][linkagemeth] = np.linalg.norm(diff[distrib][linkagemeth])
     
     winner = {}
@@ -783,33 +765,36 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
                 fh.write(('{}|{}|{}|0.0|{}\n'.format(d, l, i, r)))
                 i += 1
     fh.close()
+    # plot_vectors(rels, acc, gtruths, palettehex, outdir)
 
-    # if ndims > 2: return
+##########################################################
+def plot_vectors(rels, acc, gtruths, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
+    distribs = list(rels.keys())
+    linkagemeths = list(rels[distribs[0]].keys())
+    nrealizations = np.sum([len(g) for g in rels[distribs[0]][linkagemeths[0]]])
 
+    nrows = len(distribs); ncols = 1
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4), squeeze=False)
     palette = hex2rgb(palettehex, alpha=.8)
 
-    nbins = 10
-    bins = np.arange(0, 1, 0.05)
     origin = np.zeros(2)
-    for i, distrib in enumerate(data): # Plot
-            # ys = np.array([gtruths[distrib][1], v[distrib][linkagemeth][1]])
+    for i, distrib in enumerate(distribs):
         xs = np.array([gtruths[distrib][0]])
         ys = np.array([gtruths[distrib][1]])
 
         ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
-                        angles='xy', scale_units='xy', scale=1,
-                        label='Gtruth',
+                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
                         headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
 
         for j, linkagemeth in enumerate(linkagemeths):
-            xs = np.array([v[distrib][linkagemeth][0]])
-            ys = np.array([v[distrib][linkagemeth][1]])
+            xs = np.array([acc[distrib][linkagemeth][0]])
+            ys = np.array([acc[distrib][linkagemeth][1]])
 
-            coords = np.array([v[distrib][linkagemeth][0],
-                              v[distrib][linkagemeth][1]])
+            coords = np.array([acc[distrib][linkagemeth][0],
+                              acc[distrib][linkagemeth][1]])
             ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j], width=.01,
                             angles='xy', scale_units='xy', scale=1,
-                            # scale=nrealizations, label=linkagemeth,
                             label=linkagemeth,
                             headwidth=5, headlength=4, headaxislength=3.5,
                             zorder=1/np.linalg.norm(coords)+3)
@@ -827,16 +812,12 @@ def find_clusters_batch(data, metricarg, linkagemeths, nrealizations,
         ax[i, 0].legend()
 
     plt.tight_layout(pad=4)
-    export_individual_axis(ax, fig, list(data.keys()), outdir, 0.36, 'vector_')
-    fig.suptitle('Sample size:{}, minnclusters:{}, min clustsize:{}'.\
-                 format(samplesz, minnclusters, minclustsize),
-                 fontsize='x-large', y=0.98)
+    export_individual_axis(ax, fig, distribs, outdir, 0.36, 'relev_vector_')
 
-
-    for i, distrib in enumerate(data): # Plot
+    for i, distrib in enumerate(distribs): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
 
-    plt.savefig(pjoin(outdir, 'vector_{}d_{}.pdf'.format(ndims, samplesz)))
+    plt.savefig(pjoin(outdir, 'relev_vectors_all.pdf'))
 
 ##########################################################
 def test_inconsistency():
@@ -867,7 +848,7 @@ def test_inconsistency():
         plt.clf()
 
 ##########################################################
-def generate_dendrograms_all(data, metricarg, linkagemeths, pruningparam,
+def generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
         palette, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
@@ -903,10 +884,6 @@ def generate_dendrograms_all(data, metricarg, linkagemeths, pruningparam,
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
 
         for j, l in enumerate(linkagemeths):
-            if l == 'centroid' or l == 'median' or l == 'ward':
-                metric = 'euclidean'
-            else:
-                metric = metricarg
             z = linkage(data[k], l, metric)
             clustids, avgheight, maxdist, outliers = find_clusters(data[k], z,
                     minclustsize, minnclusters, pruningparam)
@@ -1434,11 +1411,11 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
             # palettehex, args.outdir)
-    plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
-            palettehex, args.outdir)
-    return
-    # find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
-            # pruningparam, palettehex, args.outdir)
+    # plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
+            # palettehex, args.outdir)
+    # return
+    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+            pruningparam, palettehex, args.outdir)
     # plot_contours(validkeys, args.outdir)
     # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
