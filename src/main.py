@@ -505,7 +505,7 @@ def get_outermost_points(linkageret, outliersratio):
         return [], linkageret[-1, 2]
 
 ##########################################################
-def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
+def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     """Compute relevance according to Luc's method
 
     Args:
@@ -525,7 +525,7 @@ def find_clusters(data, linkageret, minclustsize, minnclusters, outliersratio):
     counts = linkageret[:, 3]
 
     clustids = []
-    for clustcount in range(minclustsize, n): # Find the clustids
+    for clustcount in range(clsize, n): # Find the clustids
         if len(clustids) >= minnclusters: break
         joininds = np.where(linkageret[:, 3] == clustcount)[0]
 
@@ -679,19 +679,18 @@ def calculate_relevance(avgheight, maxdist):
     else:
         return (maxdist - avgheight) / maxdist
 ##########################################################
-def find_clusters_batch(data, metric, linkagemeths, nrealizations,
+def find_clusters_batch(data, metric, linkagemeths, clrelsize, nrealizations,
         outliersratio, palettehex, outdir):
 
     info('Computing relevances...')
     minnclusters = 2
-    minrelsize = 0.3
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
-    minclustsize = int(minrelsize * samplesz)
+    clsize = int(clrelsize * samplesz)
 
     gtruths = compute_gtruth_vectors(data, nrealizations)
     info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
-         format(nrealizations, samplesz, minnclusters, minclustsize))
+         format(nrealizations, samplesz, minnclusters, clsize))
 
     rels = {}
     for k in data.keys():
@@ -711,7 +710,7 @@ def find_clusters_batch(data, metric, linkagemeths, nrealizations,
                     print(e)
                     raise(e)
 
-                ret = find_clusters(data[distrib], z, minclustsize,
+                ret = find_clusters(data[distrib], z, clsize,
                         minnclusters, outliersratio)
                 clustids, avgheight, maxdist, outliers = ret
                 rel = calculate_relevance(avgheight, maxdist)
@@ -848,14 +847,13 @@ def test_inconsistency():
         plt.clf()
 
 ##########################################################
-def generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
+def generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
         palette, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
-    minrelsize = 0.3
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
-    minclustsize = int(minrelsize * samplesz)
+    clsize = int(clrelsize * samplesz)
     nlinkagemeths = len(linkagemeths)
     ndistribs = len(data.keys())
     nrows = ndistribs
@@ -865,7 +863,7 @@ def generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
     ax = np.array([[None]*ncols]*nrows)
 
     fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
-                 format(samplesz, minnclusters, minclustsize), fontsize=24)
+                 format(samplesz, minnclusters, clsize), fontsize=24)
 
     nsubplots = nrows * ncols
 
@@ -886,7 +884,7 @@ def generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
         for j, l in enumerate(linkagemeths):
             z = linkage(data[k], l, metric)
             clustids, avgheight, maxdist, outliers = find_clusters(data[k], z,
-                    minclustsize, minnclusters, pruningparam)
+                    clsize, minnclusters, pruningparam)
             rel = calculate_relevance(avgheight, maxdist)
             # plot_dendrogram(z, l, ax[i, j+1], rel, clustids, palette)
             plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10, outliers)
@@ -1002,17 +1000,16 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
 ##########################################################
-def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
-        palettehex, outdir):
+def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, clrelsize,
+        pruningparam, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
-    minrelsize = 0.3
     nrows = len(validkeys)
     ndistribs = nrows
     ncols = 2
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
-    minclustsize = int(minrelsize * samplesz)
+    clsize = int(clrelsize * samplesz)
 
     nsubplots = nrows * ncols
     figscale = 5
@@ -1037,7 +1034,7 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
-        clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, minclustsize,
+        clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, clsize,
                 minnclusters, pruningparam)
         rel = calculate_relevance(avgheight, maxdist)
         colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight, maxdist, clustids,
@@ -1045,6 +1042,9 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         # plot_scatter(data[k], ax[i, 0], colours)
         # ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
+        xylim = np.max(np.abs(data[k][:, 0])) * 1.1
+        ax[i, 0].set_xlim(-xylim, +xylim)
+        ax[i, 0].set_ylim(-xylim, +xylim)
 
         if len(clustids) == 1:
             text = 'rel: ({:.3f}, 0)'.format(rel)
@@ -1058,15 +1058,24 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, pruningparam,
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
     # fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
-                 # format(samplesz, minnclusters, minclustsize),
+                 # format(samplesz, minnclusters, clsize),
                  # y=.92, fontsize=32)
 
-    plt.tight_layout(pad=1)
+    # plt.tight_layout(pad=1, h_pad=2, w_pad=3)
     plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
+
+    for i in range(nrows):
+        for j in range(ncols):
+            ax[i, j].set_xticklabels([])
+            ax[i, j].set_yticklabels([])
+            ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
+            ax[i, j].set_ylabel('')
+
+
     labels = []
     for v in validkeys:
-        labels.append('A_' + v)
-        labels.append('B_' + v)
+        labels.append('hieclust_' + v + '_points')
+        labels.append('hieclust_' + v + '_dendr')
     export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf')
 
 ##########################################################
@@ -1188,7 +1197,7 @@ def plot_parallel_all(df, outdir):
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
     plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.6)
     for i, dim in enumerate(dims):
-        plt.text(-0.1, .5, '{}-D'.format(dim),
+        plt.text(-0.12, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
                  fontsize='30',
                  transform = axs[i, 0].transAxes
@@ -1217,6 +1226,8 @@ def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     methdf = pd.DataFrame(data, columns='distrib,dim,methrank'.split(','))
     ndistribs = len(np.unique(methdf.distrib))
 
+    fh = open(pjoin(outdir, 'meths_ranking.csv'), 'w')
+    print('dim,uni,bi', file=fh)
     for d in np.unique(methdf.dim):
         filtered1 = methdf[methdf.dim == d][:4]
         filtered1 = filtered1[(filtered1.methrank < 3)]
@@ -1226,8 +1237,10 @@ def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
 
         m = methdf[methdf.dim == d]
 
-        print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 4,
-                                     filtered2.shape[0], 4))
+        # print('dim:{}\t{}/{}\t{}/{}'.format(d, filtered1.shape[0], 4,
+                                     # filtered2.shape[0], 4))
+        print('{},{},{}'.format(d, filtered1.shape[0], filtered2.shape[0]), file=fh)
+    fh.close()
 
 ##########################################################
 def scatter_pairwise(df, linkagemeths, palettehex, outdir):
@@ -1293,12 +1306,12 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
     return corr
 
 ##########################################################
-def plot_meths_heatmap(methscorr, linkagemeths, outdir):
+def plot_meths_heatmap(methscorr, linkagemeths, label, outdir):
     info(inspect.stack()[0][3] + '()')
 
     n = methscorr.shape[0]
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5, 4))
     im = ax.imshow(methscorr, cmap='coolwarm', vmin=-1, vmax=1)
 
     ax.set_xticks(np.arange(len(linkagemeths)))
@@ -1321,11 +1334,11 @@ def plot_meths_heatmap(methscorr, linkagemeths, outdir):
     # Create colorbar
     cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.set_ylabel('pearson corr.', rotation=-90, va="bottom")
-    fig.tight_layout(pad=0)
-    plt.savefig(pjoin(outdir, 'meths_heatmap.pdf'))
+    fig.tight_layout(pad=0.5)
+    plt.savefig(pjoin(outdir, 'meths_heatmap_' + label + '.pdf'))
 
 ##########################################################
-def plot_graph(methscorr_in, linkagemeths, palettehex, outdir):
+def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
     """Plot the graph according to the weights.
     However, this is an ill posed problem because
     the weights would need to satisfy the triangle
@@ -1359,16 +1372,20 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, outdir):
     g.delete_edges(todelete)
 
     g.vs['label'] = linkagemeths
+    # g.vs['label'] = ['     ' + l for l in linkagemeths]
     edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
     # l = igraph.GraphBase.layout_fruchterman_reingold(weights=g.es['weight'])
     palette = hex2rgb(palettehex, alpha=.8)
     l = g.layout('fr', weights=g.es['weight'])
-    igraph.plot(g, pjoin(outdir, 'graph.pdf'), layout=l,
+    outpath = pjoin(outdir, 'meths_graph_' + label + '.pdf')
+    vcolors = palettehex[:g.vcount()]
+
+    igraph.plot(g, outpath, layout=l,
                 edge_label=edgelabels, edge_width=widths,
                 edge_label_size=15,
-                vertex_color=palettehex[0], vertex_frame_width=0,
-                vertex_label_size=20,
-                margin=50)
+                vertex_color=vcolors, vertex_frame_width=0,
+                vertex_label_size=30,
+                margin=80)
 
 ##########################################################
 def main():
@@ -1390,10 +1407,11 @@ def main():
     np.set_printoptions(precision=5, suppress=True)
     np.random.seed(args.seed)
 
-    metric = 'euclidean'
     linkagemeths = ['single', 'complete', 'average', 'centroid', 'median', 'ward']
-    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    metric = 'euclidean'
     pruningparam = 0.02
+    clrelsize = 0.3 # cluster rel. size
+    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     info('pruningparam:{}'.format(pruningparam))
 
     validkeys = [
@@ -1409,13 +1427,13 @@ def main():
 
     data, _ = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
-    # generate_dendrograms_all(data, metric, linkagemeths, pruningparam,
+    # generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
             # palettehex, args.outdir)
-    # plot_dendrogram_clusters(data, validkeys, 'single', metric, pruningparam,
-            # palettehex, args.outdir)
-    # return
-    find_clusters_batch(data, metric, linkagemeths, args.nrealizations,
+    # plot_dendrogram_clusters(data, validkeys, 'single', metric, clrelsize,
+            # pruningparam, palettehex, args.outdir)
+    find_clusters_batch(data, metric, linkagemeths, clrelsize, args.nrealizations,
             pruningparam, palettehex, args.outdir)
+    return
     # plot_contours(validkeys, args.outdir)
     # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
@@ -1425,11 +1443,13 @@ def main():
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
 
-    # plot_parallel_all(df, args.outdir)
-    # count_method_ranking(df, linkagemeths, 'single', args.outdir)
-    # methscorr = scatter_pairwise(df, linkagemeths, palettehex, args.outdir)
-    # plot_meths_heatmap(methscorr, linkagemeths, args.outdir)
-    # plot_graph(methscorr, linkagemeths, palettehex, args.outdir)
+    plot_parallel_all(df, args.outdir)
+    count_method_ranking(df, linkagemeths, 'single', args.outdir)
+    for nclusters in ['1', '2']:
+        filtered = df[df['distrib'].str.startswith(nclusters)]
+        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, args.outdir)
+        plot_meths_heatmap(methscorr, linkagemeths, nclusters, args.outdir)
+        plot_graph(methscorr, linkagemeths, palettehex, nclusters, args.outdir)
     # test_inconsistency()
 
 ##########################################################
