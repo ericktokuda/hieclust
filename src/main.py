@@ -97,9 +97,8 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
 
     for clustid in clustids:
         c = vividcolors.pop()
-        f, g = get_descendants(z, n, clustid)
-        g = np.concatenate((g, [clustid]))
-        for ff in g: colors[ff]  = c
+        links = get_descendants(z, n, clustid)
+        for l in links: colors[l]  = c
 
     c = vividcolors.pop()
     ancestors = []
@@ -139,17 +138,11 @@ def get_points_inside_circle(x, c0, r):
     return inside
 
 ##########################################################
-def get_random_sample(x, npartitions, partitionsz):
-    # idx = np.random.randint(x.shape[0], size=partitionsz)
-    idx = np.random.choice(range(x.shape[0]), size=npartitions*partitionsz,
-            replace=False)
-    counts = np.zeros(npartitions, dtype=int)
-
-    for i in range(npartitions):
-        clustidx = i*partitionsz
-        counts[i] = np.sum((idx >= clustidx) & (idx < clustidx+partitionsz))
-
-    return x[sorted(idx)], counts
+def get_random_sample(x, npartitions, samplesz):
+    ind = np.random.choice(range(x.shape[0]), size=samplesz, replace=False)
+    counts = np.ones(npartitions, dtype=int) * int(samplesz/npartitions)
+    counts[-1] += samplesz % npartitions
+    return x[sorted(ind)], counts
 
 ##########################################################
 def generate_uniform(samplesz, ndims, mus, rads):
@@ -299,6 +292,9 @@ def generate_data(samplesz, ndims):
 
     k = '1,exponential'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
+    # sorted_array = data[k][np.argsort(data[k][:, 0])]
+    # print(sorted_array)
+    # input()
     # return data, partsz
 
     mus = np.ones((2, ndims))
@@ -309,6 +305,7 @@ def generate_data(samplesz, ndims):
     for alpha in [4, 5, 6]:
         k = '2,uniform,' + str(alpha)
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
+        # print(data, partsz)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
 
         k = '2,gaussian,' + str(alpha)
@@ -420,7 +417,7 @@ def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap, linewidth):
     return ax
 
 ##########################################################
-def get_descendants(z, nleaves, clustid):
+def get_descendants(z, nleaves, clustid, itself=True):
     """Get all the descendants from a given cluster id
 
     Args:
@@ -432,16 +429,29 @@ def get_descendants(z, nleaves, clustid):
     np.ndarray, np.ndarray: (leaves, links)
     """
 
-    if clustid < nleaves:
-        return [clustid], []
+    clustids = np.array([clustid]) if itself else np.array([])
+    if clustid < nleaves: return clustids
 
     zid = int(clustid - nleaves)
-    leftid = z[zid, 0]
-    rightid = z[zid, 1]
-    elids1, linkids1 = get_descendants(z, nleaves, leftid)
-    elids2, linkids2 = get_descendants(z, nleaves, rightid)
-    linkids = np.concatenate((linkids1, linkids2, [leftid, rightid])).astype(int)
-    return np.concatenate((elids1, elids2)).astype(int), linkids
+    linkids1 = get_descendants(z, nleaves, z[zid, 0]) # left
+    linkids2 = get_descendants(z, nleaves, z[zid, 1]) # right
+    return np.concatenate((clustids, linkids1, linkids2)).astype(int)
+
+##########################################################
+def get_leaves(z, clustid):
+    """Get leaves below clustid
+
+    Args:
+    z(np.ndarray): linkage matrix
+    clustid(int): cluster id
+
+    Returns:
+    np.ndarray: leaves
+    """
+    # info(inspect.stack()[0][3] + '()')
+    n = z.shape[0] + 1
+    desc = get_descendants(z, n, clustid, itself=True)
+    return desc[desc < n]
 
 ##########################################################
 def is_child(parent, child, linkageret):
@@ -457,9 +467,10 @@ def is_child(parent, child, linkageret):
     """
 
     nleaves = linkageret.shape[0] + 1
-    leaves, links = get_descendants(linkageret, nleaves, parent)
-    if (child in leaves) or (child in links): return True
-    else: return False
+    links = get_descendants(linkageret, nleaves, parent)
+    return (child in links)
+    # if child in links: return True
+    # else: return False
 
 ##########################################################
 def get_parent(child, linkageret):
@@ -490,12 +501,12 @@ def get_outermost_points(linkageret, outliersratio):
         for i in range(n-1):
             if tree.left and tree.left.count <= noutliers:
                 if tree.left:
-                    leaves, _ = get_descendants(linkageret, n, tree.left.id)
+                    leaves = get_leaves(linkageret, tree.left.id)
                     outliers.extend(leaves)
                 tree = tree.right
             elif tree.right and tree.right.count <= noutliers:
                 if tree.right:
-                    leaves, _ = get_descendants(linkageret, n, tree.right.id)
+                    leaves = get_leaves(linkageret, tree.right.id)
                     outliers.extend(leaves)
                 tree = tree.left
             else:
@@ -536,7 +547,8 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
                 if is_child(clid, other, linkageret):
                     newclust = False
                     break
-            if newclust: clustids.append(clid)
+            if newclust:
+                clustids.append(clid)
 
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
@@ -1002,6 +1014,7 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
 ##########################################################
 def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, clrelsize,
         pruningparam, palettehex, outdir):
+
     info(inspect.stack()[0][3] + '()')
     minnclusters = 2
     nrows = len(validkeys)
@@ -1034,15 +1047,17 @@ def plot_dendrogram_clusters(data, validkeys, linkagemeth, metric, clrelsize,
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
+
         clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, clsize,
                 minnclusters, pruningparam)
+
+        # print(k, [len(get_leaves(z, kk)) for kk in clustids])
+
         rel = calculate_relevance(avgheight, maxdist)
-        colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight, maxdist, clustids,
-                palettehex, outliers)
-        # plot_scatter(data[k], ax[i, 0], colours)
-        # ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
+        colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight,
+                maxdist, clustids, palettehex, outliers)
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
-        xylim = np.max(np.abs(data[k][:, 0])) * 1.1
+        xylim = np.max(np.abs(data[k])) * 1.1
         ax[i, 0].set_xlim(-xylim, +xylim)
         ax[i, 0].set_ylim(-xylim, +xylim)
 
@@ -1426,19 +1441,19 @@ def main():
     ]
 
     data, _ = generate_data(args.samplesz, args.ndims)
-    # plot_points(data, args.outdir)
-    # generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
-            # palettehex, args.outdir)
-    # plot_dendrogram_clusters(data, validkeys, 'single', metric, clrelsize,
-            # pruningparam, palettehex, args.outdir)
+    plot_points(data, args.outdir)
+    generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
+            palettehex, args.outdir)
+    plot_dendrogram_clusters(data, validkeys, 'single', metric, clrelsize,
+            pruningparam, palettehex, args.outdir)
     find_clusters_batch(data, metric, linkagemeths, clrelsize, args.nrealizations,
             pruningparam, palettehex, args.outdir)
-    return
-    # plot_contours(validkeys, args.outdir)
-    # plot_contours(validkeys, args.outdir, True)
-    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    # plot_article_gaussian_distribs_scale(palettehex, args.outdir)
-    # plot_article_quiver(palettehex, args.outdir)
+    # return
+    plot_contours(validkeys, args.outdir)
+    plot_contours(validkeys, args.outdir, True)
+    plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
+    plot_article_quiver(palettehex, args.outdir)
     
     df = pd.read_csv(args.resultspath, sep='|')
     df = df[df.distrib.isin(validkeys)]
