@@ -548,7 +548,7 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
 
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
-        return clustids, l, L, outliers
+        return np.array(clustids), l, L, outliers
         
 
     m = np.max(clustids)
@@ -569,7 +569,7 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
         avgheight += linkageret[cl - n, 2]
     avgheight /= len(clustids) # average of the heights
 
-    clustids = sorted(clustids)[:2]
+    clustids = np.array(sorted(clustids)[:2])
     return clustids, avgheight, L, outliers
 
 ##########################################################
@@ -690,8 +690,9 @@ def calculate_relevance(avgheight, maxdist):
 ##########################################################
 def compute_max_precision(clustids, partsz, z):
     precs = []
-    for i in range(len(clustids)):
-        rrobin = clustids[i:] + clustids[0:i]
+    clids = list(clustids)
+    for i in range(len(clids)):
+        rrobin = clids[i:] + clids[0:i]
         precs.append(compute_precision(rrobin, partsz, z))
     return np.max(precs)
 
@@ -712,6 +713,25 @@ def compute_precision(clustids, partsz, z):
     
     return np.sum(tps) / (np.sum(tps) + np.sum(fps))
 
+##########################################################
+def is_precise(distrib, clustids, prec, precthresh):
+    """Check case when it is a bimodal distrib, two clusters are found but
+    with low precision. Awful idea
+
+    Args:
+    distrib(str): distribution
+    clustids(ndarray): cluster ids
+    prec(float): precision of the detection
+    precthresh(float): precision threshold
+
+    Returns:
+    bool: is it precise enough
+    """
+
+    if distrib.startswith('2,') and len(clustids) == 2 and prec < precthresh:
+        return False
+    else:
+        return True
 ##########################################################
 def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
         nrealizations, outliersratio, palettehex, outdir):
@@ -734,18 +754,17 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
         methprec[k] = {l: [] for l in linkagemeths}
         nmisses[k] = {l: 0 for l in linkagemeths}
 
-    for r in range(nrealizations): # Compute relevances
+    for r in range(nrealizations): # loop realization
         info('realization {:02d}'.format(r))
         data, partsz = generate_data(samplesz, ndims)
 
-        for j, linkagemeth in enumerate(linkagemeths):
-            for i, distrib in enumerate(data):
+        for j, linkagemeth in enumerate(linkagemeths): # loop method
+            for i, distrib in enumerate(data): # loop distrib
                 try:
                     z = linkage(data[distrib], linkagemeth, metric)
                 except Exception as e:
-                    print(data[distrib], linkagemeth, metric)
-                    np.save('/tmp/foo.npy', data[distrib])
-                    print(e)
+                    filename = 'error_{}_{}.npy'.format(distrib, linkagemeth)
+                    np.save(pjoin(outdir, filename), data[distrib])
                     raise(e)
 
                 ret = find_clusters(data[distrib], z, clsize,
@@ -754,14 +773,12 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
                 rel = calculate_relevance(avgheight, maxdist)
                 prec = compute_max_precision(clustids, partsz[k], z)
 
-                nfound = len(clustids) - 1
-                if distrib.startswith('2,') and len(clustids) == 2 and \
-                        prec < precthresh:
+                if not is_precise(distrib, clustids, prec, precthresh):
                     nfound = 0
                     nmisses[distrib][linkagemeth] += 1
+                else:
+                    nfound = len(clustids) - 1
 
-                clustids = np.array(clustids)
-                incinds = clustids - samplesz
                 rels[distrib][linkagemeth][nfound].append(rel)
 
     accrel = {k: {} for k in data.keys()} # accumulated relevances
@@ -772,8 +789,8 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
             for j, rel in enumerate(rels[distrib][linkagemeth]):
                 accrel[distrib][linkagemeth][j] = np.sum(rel)
 
-    pd.DataFrame(nmisses).to_csv(pjoin(outdir, 'nmisses.csv'),
-            sep='|', index_label='linkagemeth')
+    filename = pjoin(outdir, 'nmisses.csv')
+    pd.DataFrame(nmisses).to_csv(filename, sep='|', index_label='linkagemeth')
 
     diff = {} # difference to the ground-truth
     diffnorms = {}
