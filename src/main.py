@@ -1111,7 +1111,7 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
                  # y=.92, fontsize=32)
 
     # plt.tight_layout(pad=1, h_pad=2, w_pad=3)
-    plt.savefig(pjoin(outdir, '{}d-{}.pdf'.format(ndims, linkagemeth)))
+    plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
 
     for i in range(nrows):
         for j in range(ncols):
