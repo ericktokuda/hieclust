@@ -713,8 +713,8 @@ def compute_precision(clustids, partsz, z):
     return np.sum(tps) / (np.sum(tps) + np.sum(fps))
 
 ##########################################################
-def find_clusters_batch(data, metric, linkagemeths, clrelsize, nrealizations,
-        outliersratio, palettehex, outdir):
+def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
+        nrealizations, outliersratio, palettehex, outdir):
 
     info('Computing relevances...')
     minnclusters = 2
@@ -750,13 +750,17 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, nrealizations,
                         minnclusters, outliersratio)
                 clustids, avgheight, maxdist, outliers = ret
                 rel = calculate_relevance(avgheight, maxdist)
-                # TODO: compute precision here
-                # prec = compute_precision(clustids, partsz[distrib], z)
-                # methprec[distrib][linkagemeth].append(tp / (tp + fp))
+                prec = compute_max_precision(clustids, partsz[k], z)
+
+                nfound = len(clustids) - 1
+                methprec[distrib][linkagemeth].append(prec)
+                if distrib.startswith('2,') and len(clustids) == 2 and \
+                        prec < precthresh:
+                    nfound = 0
 
                 clustids = np.array(clustids)
                 incinds = clustids - samplesz
-                rels[distrib][linkagemeth][len(incinds)-1].append(rel)
+                rels[distrib][linkagemeth][nfound].append(rel)
 
     accrel = {k: {} for k in data.keys()} # accumulated relevances
 
@@ -1460,6 +1464,7 @@ def main():
     metric = 'euclidean'
     pruningparam = 0.02
     clrelsize = 0.3 # cluster rel. size
+    precthresh = 0.7
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     info('pruningparam:{}'.format(pruningparam))
 
@@ -1478,10 +1483,10 @@ def main():
     # plot_points(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
             # palettehex, args.outdir)
-    plot_dendrogram_clusters(data, partsz, validkeys, 'single', metric, clrelsize,
-            pruningparam, palettehex, args.outdir)
-    # find_clusters_batch(data, metric, linkagemeths, clrelsize, args.nrealizations,
+    # plot_dendrogram_clusters(data, partsz, validkeys, 'single', metric, clrelsize,
             # pruningparam, palettehex, args.outdir)
+    find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
+            args.nrealizations, pruningparam, palettehex, args.outdir)
     # plot_contours(validkeys, args.outdir)
     # plot_contours(validkeys, args.outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, args.outdir)
