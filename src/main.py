@@ -728,9 +728,11 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
 
     rels = {}
     methprec = {}
+    nmisses = {}
     for k in data.keys():
         rels[k] = {l: [[], []] for l in linkagemeths}
         methprec[k] = {l: [] for l in linkagemeths}
+        nmisses[k] = {l: 0 for l in linkagemeths}
 
     for r in range(nrealizations): # Compute relevances
         info('realization {:02d}'.format(r))
@@ -753,10 +755,10 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
                 prec = compute_max_precision(clustids, partsz[k], z)
 
                 nfound = len(clustids) - 1
-                methprec[distrib][linkagemeth].append(prec)
                 if distrib.startswith('2,') and len(clustids) == 2 and \
                         prec < precthresh:
                     nfound = 0
+                    nmisses[distrib][linkagemeth] += 1
 
                 clustids = np.array(clustids)
                 incinds = clustids - samplesz
@@ -769,6 +771,9 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
             accrel[distrib][linkagemeth] = np.zeros(2)
             for j, rel in enumerate(rels[distrib][linkagemeth]):
                 accrel[distrib][linkagemeth][j] = np.sum(rel)
+
+    pd.DataFrame(nmisses).to_csv(pjoin(outdir, 'nmisses.csv'),
+            sep='|', index_label='linkagemeth')
 
     diff = {} # difference to the ground-truth
     diffnorms = {}
