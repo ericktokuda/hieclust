@@ -299,7 +299,7 @@ def generate_data(samplesz, ndims):
     rads = np.ones(2) * 1.0
     covs = np.array([np.eye(ndims)] * 2)
 
-    for alpha in [4, 5, 6]:
+    for alpha in [4]:
         k = '2,uniform,' + str(alpha)
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
@@ -573,7 +573,7 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     return clustids, avgheight, L, outliers
 
 ##########################################################
-def compute_gtruth_vectors(data, nrealizations):
+def compute_gtruth_vectors(distribs, nrealizations):
     """Compute the ground-truth given by Luc method
 
     Args:
@@ -583,7 +583,7 @@ def compute_gtruth_vectors(data, nrealizations):
     dict: key 'numclust,method,param' and list as values
     """
     gtruths = {}
-    for i, k in enumerate(data):
+    for i, k in enumerate(distribs):
         nclusters = int(k.split(',')[0])
         gtruths[k] = np.zeros(2)
         gtruths[k][nclusters-1] = nrealizations
@@ -713,25 +713,92 @@ def compute_precision(clustids, partsz, z):
     
     return np.sum(tps) / (np.sum(tps) + np.sum(fps))
 
+
 ##########################################################
-def is_precise(distrib, clustids, prec, precthresh):
-    """Check case when it is a bimodal distrib, two clusters are found but
-    with low precision. Awful idea
+def accumulate_relevances(rels, distribs, linkagemeths):
+    accrel = {k: {} for k in distribs} # accumulated relevances
 
-    Args:
-    distrib(str): distribution
-    clustids(ndarray): cluster ids
-    prec(float): precision of the detection
-    precthresh(float): precision threshold
+    for i, distrib in enumerate(distribs):
+        for linkagemeth in linkagemeths:
+            accrel[distrib][linkagemeth] = np.zeros(2)
+            for j, rel in enumerate(rels[distrib][linkagemeth]):
+                accrel[distrib][linkagemeth][j] = np.sum(rel)
+    return accrel
 
-    Returns:
-    bool: is it precise enough
-    """
 
-    if distrib.startswith('2,') and len(clustids) == 2 and prec < precthresh:
-        return False
-    else:
-        return True
+##########################################################
+def compute_rel_to_gtruth_difference(accrel, gtruths, distribs, linkagemeths,
+        nrealizations):
+    diff = {} # difference to the ground-truth
+    diffnorms = {}
+    for k in distribs:
+        diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
+        diffnorms[k] = {}
+
+    for i, distrib in enumerate(distribs):
+        for j, linkagemeth in enumerate(linkagemeths):
+            diff[distrib][linkagemeth] = gtruths[distrib] - accrel[distrib][linkagemeth]
+            diffnorms[distrib][linkagemeth] = np.linalg.norm(diff[distrib][linkagemeth])
+    
+    winners = {}
+    for d in distribs:
+        minvalue = 1000
+        for l in linkagemeths:
+            if diffnorms[d][l] < minvalue:
+                winners[d] = l
+                minvalue = diffnorms[d][l]
+    return diffnorms, winners
+
+##########################################################
+def extract_features(maxdist, avgheight, noutliers, clustids, z):
+    clsizes = [0] * 2
+    for i in [0, 1]:
+        if len(clustids) > i:
+            clsizes[i] = len(get_leaves(z, clustids[0]))
+            
+    features = np.array([maxdist, avgheight, noutliers] + clsizes)
+    features = np.concatenate((features, z[:, 2]))
+    return features
+##########################################################
+def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir):
+    df = pd.DataFrame.from_dict(diffnorms, orient='index')
+    df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
+    df.to_csv(pjoin(outdir, 'results.csv'), sep='|', index_label='distrib')
+
+    nrealizations, featsize = features[distribs[0]][linkagemeths[0]].shape
+    df = pd.DataFrame.from_dict(features, orient='index')
+    # print(nrealizations, featsize)
+    # input()
+
+    fh = open(pjoin(outdir, 'features.csv'), 'w')
+    header = 'linkagemeth|distrib|realiz|'
+    header += '|'.join(['h{:03d}'.format(x) for x in range(featsize)])
+    print(header, file=fh)
+    for l in linkagemeths:
+        for d in distribs:
+            for r in range(nrealizations):
+                s = '{}|{}|{}|'.format(d, l, r)
+                s += ('|'.join([str(x) for x in df[l][d][r]]))
+                print(s, file=fh)
+    fh.close()
+
+    # fh = open(pjoin(outdir, 'raw.csv'), 'w')
+    # fh.write('distrib|linkagemeth|realiz|relev1|relev2\n')
+    # for d in distribs:
+        # for l in linkagemeths:
+            # i = 0
+            # rels1 = rels[d][l][0]
+            # for r in rels1:
+                # fh.write(('{}|{}|{}|{:.3f}|0.000\n'.format(d, l, i, r)))
+                # i += 1
+
+            # rels2 = rels[d][l][1]
+            # for r in rels2:
+                # fh.write(('{}|{}|{}|0.000|{:.3f}\n'.format(d, l, i, r)))
+                # i += 1
+    # fh.close()
+
+
 ##########################################################
 def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
         nrealizations, outliersratio, palettehex, outdir):
@@ -741,18 +808,22 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
     clsize = int(clrelsize * samplesz)
+    distribs = list(data.keys())
 
-    gtruths = compute_gtruth_vectors(data, nrealizations)
-    info('Nrealizations:{}, Samplesize:{}, min nclusters:{}, min clustsize:{}'.\
-         format(nrealizations, samplesz, minnclusters, clsize))
+    info('Nrealizations:{}, Samplesize:{}, requestedsz:{}'.\
+         format(nrealizations, samplesz, clsize))
 
-    rels = {}
-    methprec = {}
-    nmisses = {}
-    for k in data.keys():
-        rels[k] = {l: [[], []] for l in linkagemeths}
-        methprec[k] = {l: [] for l in linkagemeths}
-        nmisses[k] = {l: 0 for l in linkagemeths}
+    featsize = 5 + (samplesz - 1) # 5 features plus the 2nd column of Z
+
+    rels = {}; methprec = {}; nimprec = {}; features = {}
+    for distrib in distribs:
+        rels[distrib] = {}; methprec[distrib] = {};
+        nimprec[distrib] = {}; features[distrib] = {}
+        for l in linkagemeths:
+            rels[distrib][l] = [[], []]
+            methprec[distrib][l] = []
+            nimprec[distrib][l] = 0
+            features[distrib][l] = np.zeros((nrealizations, featsize))
 
     for r in range(nrealizations): # loop realization
         info('realization {:02d}'.format(r))
@@ -770,66 +841,29 @@ def find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
                 ret = find_clusters(data[distrib], z, clsize,
                         minnclusters, outliersratio)
                 clustids, avgheight, maxdist, outliers = ret
+                features[distrib][linkagemeth][r] = \
+                        extract_features(maxdist, avgheight, len(outliers), clustids, z)
+
                 rel = calculate_relevance(avgheight, maxdist)
-                prec = compute_max_precision(clustids, partsz[k], z)
+                prec = compute_max_precision(clustids, partsz[distrib], z)
+                ngtruth = int(distrib.split(',')[0])
+                npred = len(clustids)
 
-                if not is_precise(distrib, clustids, prec, precthresh):
-                    nfound = 0
-                    nmisses[distrib][linkagemeth] += 1
-                else:
-                    nfound = len(clustids) - 1
+                if ngtruth == npred and prec < precthresh: # prec limiarization
+                    npred = (npred % 2) + 1
+                    nimprec[distrib][linkagemeth] += 1
 
-                rels[distrib][linkagemeth][nfound].append(rel)
+                rels[distrib][linkagemeth][npred-1].append(rel)
 
-    accrel = {k: {} for k in data.keys()} # accumulated relevances
+    accrel = accumulate_relevances(rels, distribs, linkagemeths)
+    filename = pjoin(outdir, 'nimprec.csv')
+    pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
 
-    for i, distrib in enumerate(data):
-        for linkagemeth in linkagemeths:
-            accrel[distrib][linkagemeth] = np.zeros(2)
-            for j, rel in enumerate(rels[distrib][linkagemeth]):
-                accrel[distrib][linkagemeth][j] = np.sum(rel)
+    gtruths = compute_gtruth_vectors(distribs, nrealizations)
+    diffnorms, winners = compute_rel_to_gtruth_difference(
+            accrel, gtruths, distribs, linkagemeths, nrealizations)
 
-    filename = pjoin(outdir, 'nmisses.csv')
-    pd.DataFrame(nmisses).to_csv(filename, sep='|', index_label='linkagemeth')
-
-    diff = {} # difference to the ground-truth
-    diffnorms = {}
-    for k in data.keys():
-        diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
-        diffnorms[k] = {}
-
-    for i, distrib in enumerate(data):
-        for j, linkagemeth in enumerate(linkagemeths):
-            diff[distrib][linkagemeth] = gtruths[distrib] - accrel[distrib][linkagemeth]
-            diffnorms[distrib][linkagemeth] = np.linalg.norm(diff[distrib][linkagemeth])
-    
-    winner = {}
-    for d in data.keys():
-        minvalue = 1000
-        for l in linkagemeths:
-            if diffnorms[d][l] < minvalue:
-                winner[d] = l
-                minvalue = diffnorms[d][l]
-
-    df = pd.DataFrame.from_dict(diffnorms, orient='index')
-    df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
-    df.to_csv(pjoin(outdir, 'results.csv'), sep='|', index_label='distrib')
-
-    fh = open(pjoin(outdir, 'raw.csv'), 'w')
-    fh.write('distrib|linkagemeth|realiz|relev1|relev2\n')
-    for d in data.keys():
-        for l in linkagemeths:
-            i = 0
-            rels1 = rels[d][l][0]
-            for r in rels1:
-                fh.write(('{}|{}|{}|{}|0.0\n'.format(d, l, i, r)))
-                i += 1
-
-            rels2 = rels[d][l][1]
-            for r in rels2:
-                fh.write(('{}|{}|{}|0.0|{}\n'.format(d, l, i, r)))
-                i += 1
-    fh.close()
+    export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir)
     plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir)
 
 ##########################################################
@@ -1105,7 +1139,6 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
-
         clustids, avgheight, maxdist, outliers = find_clusters(data[k], z, clsize,
                 minnclusters, pruningparam)
 
@@ -1113,21 +1146,18 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
         prec = compute_max_precision(clustids, partsz[k], z)
         colours = plot_dendrogram(z, linkagemeth, ax[i, 1], avgheight,
                 maxdist, clustids, palettehex, outliers)
+        clsizes = []
+        for clid in clustids: clsizes.append(len(get_leaves(z, clid)))
+        ax[i, 1].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
+                format(clsizes, rel, prec),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize=15, transform = ax[i, 1].transAxes)
+
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         xylim = np.max(np.abs(data[k])) * 1.1
         ax[i, 0].set_xlim(-xylim, +xylim)
         ax[i, 0].set_ylim(-xylim, +xylim)
-        ax[i, 0].text(0.7, 0.9, '{:.2f}'.format(prec),
-                 horizontalalignment='center', verticalalignment='center',
-                 fontsize=20)
 
-        if len(clustids) == 1:
-            text = 'rel: ({:.3f}, 0)'.format(rel)
-        else:
-            text = 'rel: (0, {:.3f})'.format(rel)
-        # plt.text(0.7, 0.9, text,
-                 # horizontalalignment='center', verticalalignment='center',
-                 # fontsize=20, transform = ax[i, 1].transAxes)
 
     for i, k in enumerate(validkeys):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
@@ -1215,7 +1245,7 @@ def plot_parallel(df, colours, ax, fig):
     )
     ax.yaxis.grid(False)
     ax.xaxis.set_ticks_position('top')
-    ax.set_yticks([0, 100, 200, 300, 400, 500])
+    # ax.set_yticks([0, 100, 200, 300, 400, 500])
     ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
@@ -1509,22 +1539,23 @@ def main():
             # pruningparam, palettehex, args.outdir)
     find_clusters_batch(data, metric, linkagemeths, clrelsize, precthresh,
             args.nrealizations, pruningparam, palettehex, args.outdir)
-    # plot_contours(validkeys, args.outdir)
-    # plot_contours(validkeys, args.outdir, True)
-    # plot_article_uniform_distribs_scale(palettehex, args.outdir)
-    # plot_article_gaussian_distribs_scale(palettehex, args.outdir)
-    # plot_article_quiver(palettehex, args.outdir)
+    return
+    plot_contours(validkeys, args.outdir)
+    plot_contours(validkeys, args.outdir, True)
+    plot_article_uniform_distribs_scale(palettehex, args.outdir)
+    plot_article_gaussian_distribs_scale(palettehex, args.outdir)
+    plot_article_quiver(palettehex, args.outdir)
     
-    # df = pd.read_csv(args.resultspath, sep='|')
-    # df = df[df.distrib.isin(validkeys)]
+    df = pd.read_csv(args.resultspath, sep='|')
+    df = df[df.distrib.isin(validkeys)]
 
-    # plot_parallel_all(df, args.outdir)
-    # count_method_ranking(df, linkagemeths, 'single', args.outdir)
-    # for nclusters in ['1', '2']:
-        # filtered = df[df['distrib'].str.startswith(nclusters)]
-        # methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, args.outdir)
-        # plot_meths_heatmap(methscorr, linkagemeths, nclusters, args.outdir)
-        # plot_graph(methscorr, linkagemeths, palettehex, nclusters, args.outdir)
+    plot_parallel_all(df, args.outdir)
+    count_method_ranking(df, linkagemeths, 'single', args.outdir)
+    for nclusters in ['1', '2']:
+        filtered = df[df['distrib'].str.startswith(nclusters)]
+        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, args.outdir)
+        plot_meths_heatmap(methscorr, linkagemeths, nclusters, args.outdir)
+        plot_graph(methscorr, linkagemeths, palettehex, nclusters, args.outdir)
     # test_inconsistency()
 
 ##########################################################
