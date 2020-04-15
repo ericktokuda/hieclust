@@ -771,7 +771,7 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
     # input()
 
     fh = open(pjoin(outdir, 'features.csv'), 'w')
-    header = 'linkagemeth|distrib|realiz|'
+    header = 'distrib|linkagemeth|realiz|'
     header += '|'.join(['h{:03d}'.format(x) for x in range(featsize)])
     print(header, file=fh)
     for l in linkagemeths:
@@ -1493,6 +1493,44 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
                 margin=80)
 
 ##########################################################
+def plot_pca(featurespath):
+    df = pd.read_csv(featurespath, sep='|')
+    cols = []
+    for col in df.columns:
+        if col.startswith('h'):
+            cols.append(col)
+
+    # print(df.distrib)
+    # print(df.linkagemeth)
+    print(df.distrib)
+    df = df[df.distrib=='1,uniform'] # filter
+    print(df.shape)
+    df = df[df.linkagemeth == 'single'] # filter
+    print(df.shape)
+    input()
+    x, evecs, evals = pca(df[cols].values)
+    # distribs = np.unique(df.distrib)
+    # for distrib in distribs:
+    plt.scatter(x[:, 0], x[:, 1], label=distrib)
+
+    # plt.scatter(x[:, 0], x[:, 1], label=df.distrib.values)
+    plt.legend()
+    plt.savefig('/tmp/out.png')
+    # pca()
+    # return
+
+##########################################################
+def pca(xin):
+    x = xin - np.mean(xin, axis=0)
+    cov = np.cov(x, rowvar = False)
+    evals , evecs = np.linalg.eig(cov)
+
+    idx = np.argsort(evals)[::-1]
+    evecs = evecs[:,idx] # each column is a eigenvector
+    evals = evals[idx]
+    a = np.dot(x, evecs)
+    return a, evecs, evals
+##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ndims', type=int, default=2,
@@ -1530,6 +1568,10 @@ def main():
         '2,quadratic,4',
         '2,exponential,4',
     ]
+
+    # featurespath = pjoin(args.outdir, 'features.csv')
+    # plot_pca(featurespath)
+    # return
 
     data, partsz = generate_data(args.samplesz, args.ndims)
     # plot_points(data, args.outdir)
