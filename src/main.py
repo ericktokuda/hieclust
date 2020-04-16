@@ -357,8 +357,8 @@ def plot_2coords(data, outdir):
 
 ##########################################################
 def mesh_xy(min, max, s):
-    xs = np.linspace(-1, +1, s)
-    ys = np.linspace(-1, +1, s)
+    xs = np.linspace(min, max, s)
+    ys = np.linspace(min, max, s)
     X, Y = np.meshgrid(xs, ys)
     Z = np.zeros(X.shape)
     return X, Y, Z
@@ -379,8 +379,7 @@ def plot_contour_uniform(mus, rs, s, ax, cmap, linewidth):
 ##########################################################
 def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon,
         positive=False):
-    # TODO: use positive
-    X, Y, Z = mesh_xy(0, +1.0, s)
+    X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
     # epsilon = .6
@@ -392,7 +391,10 @@ def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon,
     for i in range(mus.shape[0]):
         mu = mus[i, :]
         d = cdist(coords, np.array([mu])).flatten()
-        # Zflat += -d**power
+
+        if positive:
+            outside = (coords < mu) if mu[0] >= 0 else (coords > mu)
+            d[outside[:, 0] + outside[:, 1]] = 0
         Zflat += (1 / (d+epsilon)) ** power
 
     Z = np.reshape(Zflat, X.shape)
@@ -666,7 +668,7 @@ def plot_contours(labels, outdir, icons=False):
     covs = np.array([np.eye(ndims) * 0.1] * 2)
     plot_contour_gaussian(ndims, mus, covs, s, ax[1, 1], cmap, linewidth) # 2 gaussians
 
-    plot_contour_power(ndims, 2, mus, s, ax[1, 2], cmap, linewidth, .5,
+    plot_contour_power(ndims, 2, mus*.3, s, ax[1, 2], cmap, linewidth, .5,
             positive=True) # 2 quadratic
 
     # mus = np.zeros((1, ndims))
