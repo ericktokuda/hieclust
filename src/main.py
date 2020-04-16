@@ -197,13 +197,17 @@ def random_sign(sampleshape):
     return (np.random.rand(*sampleshape) > .5).astype(int)*2 - 1
 
 ##########################################################
-def generate_power(samplesz, ndims, power, mus, rads):
+def generate_power(samplesz, ndims, power, mus, rads, positive=False):
     ncenters = len(mus)
     x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
 
     for i in range(ncenters):
         aux = rads[i] * (1 - np.random.power(a=power+1, size=(samplesz, ndims)))
-        aux *= random_sign((samplesz, ndims))
+        if positive and i % 2 ==1:
+            aux = rads[i] - aux
+        if not positive:
+            aux *= random_sign((samplesz, ndims))
+
         # aux = get_points_inside_circle(aux, mu, 1)
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz] + mus[i]
 
@@ -255,10 +259,8 @@ def shift_clusters(x, partsz, alpha):
     mu = d / np.sqrt(ncenters)
     shifted = x.copy()
 
-    deltamu = (-mu) - np.mean(d1)
-    shifted[:partsz[0]] += deltamu
-    deltamu = (mu) - np.mean(d2)
-    shifted[partsz[0]:] += deltamu
+    shifted[:partsz[0]] += (+mu) - np.mean(d1)
+    shifted[partsz[0]:] += (-mu) - np.mean(d2)
     # calculate_alpha(shifted, partsz)
     return shifted
 
@@ -280,6 +282,25 @@ def generate_data(samplesz, ndims):
 
     mu = np.zeros((1, ndims))
 
+
+
+    # k = '1,quadratic'
+    # data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1,
+            # positive=True)
+
+
+
+    # mus = np.ones((2, ndims))
+    # mus[0, :] *= -1
+    # rads = np.ones(2) * 1.0
+    # covs = np.array([np.eye(ndims)] * 2)
+    # alpha = 4
+    # k = '2,quadratic,' + str(alpha)
+    # data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads, positive=True)
+    # data[k] = shift_clusters(data[k], partsz[k], alpha)
+
+    # return data, partsz
+
     k = '1,uniform'
     r = np.array([1])
     data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
@@ -288,8 +309,9 @@ def generate_data(samplesz, ndims):
     cov = np.array([np.eye(ndims)])*.3
     data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mu, cov)
 
-    k = '1,quadratic'
-    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1)
+    k = '1,power'
+    data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1,
+            positive=True)
 
     k = '1,exponential'
     data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
@@ -308,8 +330,9 @@ def generate_data(samplesz, ndims):
         data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
 
-        k = '2,quadratic,' + str(alpha)
-        data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads)
+        k = '2,power,' + str(alpha)
+        data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads,
+                positive=True)
         data[k] = shift_clusters(data[k], partsz[k], alpha)
 
         k = '2,exponential,' + str(alpha)
@@ -319,7 +342,7 @@ def generate_data(samplesz, ndims):
     return data, partsz
     
 ##########################################################
-def plot_points(data, outdir):
+def plot_2coords(data, outdir):
     info(inspect.stack()[0][3] + '()')
     figscale = 4
     fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
@@ -354,8 +377,10 @@ def plot_contour_uniform(mus, rs, s, ax, cmap, linewidth):
     return ax
 
 ##########################################################
-def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon):
-    X, Y, Z = mesh_xy(-1.0, +1.0, s)
+def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon,
+        positive=False):
+    # TODO: use positive
+    X, Y, Z = mesh_xy(0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
     # epsilon = .6
@@ -626,7 +651,8 @@ def plot_contours(labels, outdir, icons=False):
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
     plot_contour_gaussian(ndims, mus, covs, s, ax[0, 1], cmap, linewidth)
 
-    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap, linewidth, 1.4) # 1 quadratic
+    plot_contour_power(ndims, 2, mus, s, ax[0, 2], cmap, linewidth, 1.4,
+            positive=True) # 1 quadratic
 
     mus = np.zeros((1, ndims))
     plot_contour_exponential(ndims, mus, s, ax[0, 3], cmap, linewidth) # 1 exponential
@@ -640,7 +666,8 @@ def plot_contours(labels, outdir, icons=False):
     covs = np.array([np.eye(ndims) * 0.1] * 2)
     plot_contour_gaussian(ndims, mus, covs, s, ax[1, 1], cmap, linewidth) # 2 gaussians
 
-    plot_contour_power(ndims, 2, mus, s, ax[1, 2], cmap, linewidth, .5) # 2 quadratic
+    plot_contour_power(ndims, 2, mus, s, ax[1, 2], cmap, linewidth, .5,
+            positive=True) # 2 quadratic
 
     # mus = np.zeros((1, ndims))
     plot_contour_exponential(ndims, mus, s, ax[1, 3], cmap, linewidth) # 2 exponential
@@ -1561,11 +1588,11 @@ def main():
     validkeys = [
         '1,uniform',
         '1,gaussian',
-        '1,quadratic',
+        '1,power',
         '1,exponential',
         '2,uniform,4',
         '2,gaussian,4',
-        '2,quadratic,4',
+        '2,power,4',
         '2,exponential,4',
     ]
 
@@ -1574,7 +1601,7 @@ def main():
     # return
 
     data, partsz = generate_data(args.samplesz, args.ndims)
-    # plot_points(data, args.outdir)
+    # plot_2coords(data, args.outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
             # palettehex, args.outdir)
     # plot_dendrogram_clusters(data, partsz, validkeys, 'single', metric, clrelsize,
