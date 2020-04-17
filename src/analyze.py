@@ -370,6 +370,8 @@ def main():
     np.random.seed(0)
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    palettehex2 = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a']
+    print(len(palettehex))
 
     resdf = concat_results(args.pardir)
 
@@ -383,7 +385,7 @@ def main():
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
     for nclusters in ['1', '2']:
         filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, outdir)
+        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
         plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
         plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))

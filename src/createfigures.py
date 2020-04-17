@@ -16,11 +16,13 @@ import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
 import matplotlib.cm as cm
 from matplotlib.patches import Circle
+import itertools
 
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
 import pandas as pd
+import sklearn.datasets
 
 import utils
 
@@ -502,12 +504,12 @@ def plot_article_quiver(palettehex, outdir):
     delta = .01
 
     ax.quiver(orig[0], orig[1], v1[0], v1[1], color=palettehex[0],
-              width=.015, angles='xy', scale_units='xy', scale=1,
+              width=.010, angles='xy', scale_units='xy', scale=1,
               headwidth=4, headlength=4, headaxislength=3, zorder=3)
 
     ax.quiver(orig[0], orig[1]+delta, v2[0]-delta, v2[1],
               color='#000000', alpha=.7,
-              width=.015, angles='xy', scale_units='xy', scale=1,
+              width=.013, angles='xy', scale_units='xy', scale=1,
               headwidth=4, headlength=4, headaxislength=3, zorder=3)
 
     ax.quiver(v1[0] + delta, v1[1] - delta, v3[0]-delta, v3[1]+delta,
@@ -530,13 +532,66 @@ def plot_article_quiver(palettehex, outdir):
              horizontalalignment='center', verticalalignment='center', style='italic',
              color='#666666',
              fontsize='x-large', transform = ax.transAxes)
-    ax.set_ylabel('Relevance of 2 clusters', fontsize='medium')
-    ax.set_xlabel('Relevance of 1 cluster', fontsize='medium')
+    ax.set_ylabel('Relevance of 2 clusters', fontsize='large')
+    ax.set_xlabel('Relevance of 1 cluster', fontsize='large')
+    ax.set_xticks([0, 1, 2, 3.0])
+    ax.set_yticks([0, 1, 2])
+    from matplotlib.ticker import FormatStrFormatter
+    ax.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+    ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
     ax.set_xlim(0, 3.5)
     ax.set_ylim(0, 2)
     plt.tight_layout(pad=1)
 
-    plt.savefig(pjoin(outdir, 'arrow_dummy.pdf'))
+    plt.savefig(pjoin(outdir, 'vector.pdf'))
+
+def sklearn_to_df(sklearn_dataset):
+    df = pd.DataFrame(sklearn_dataset.data, columns=sklearn_dataset.feature_names)
+    df['target'] = pd.Series(sklearn_dataset.target)
+    return df
+
+##########################################################
+def plot_combinations(dforig, label, outdir):
+    s = 5
+    cols = list(dforig.columns)
+    cols.remove('target')
+    combs = list(itertools.combinations(cols, 2))
+    clusters = np.unique(dforig['target'])
+
+    for i, comb in enumerate(combs):
+        fig, ax = plt.subplots(figsize=(s, s))
+        for cl in clusters:
+            df = dforig[dforig['target'] == cl]
+            ax.scatter(df[comb[0]], df[comb[1]], c='brown')
+            ax.set_xlabel(comb[0])
+            ax.set_ylabel(comb[1])
+        plt.tight_layout(pad=3)
+        plt.suptitle('{} dataset'.format(label))
+        plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
+        plt.close()
+
+##########################################################
+def plot_real_datasets(outdir):
+    datasetsdir = 'data/'
+    for f in os.listdir(datasetsdir): # cached datasets
+        if not f.endswith('.csv'): continue
+        info('Plotting {}'.format(f))
+        df = pd.read_csv(pjoin(datasetsdir, f))
+        plot_combinations(df, f.replace('.csv', ''), outdir)
+
+    return
+    all = { #scikit datasets
+            'iris': sklearn.datasets.load_iris(),
+            'cancer': sklearn.datasets.load_breast_cancer(),
+            'wine': sklearn.datasets.load_wine(),
+            }
+
+    for k, v in all.items():
+        info('Plotting {}'.format(k))
+        dforig = sklearn_to_df(v)
+        plot_combinations(dforig, k, outdir)
+
+    return
 
 ##########################################################
 def main():
@@ -572,7 +627,12 @@ def main():
     clrelsize = 0.3 # cluster rel. size
     precthresh = 0.7
 
+    realdir = pjoin(outdir, 'realplots/')
+    if not os.path.isdir(realdir): os.mkdir(realdir)
+    plot_real_datasets(realdir)
+    return
     data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
+    plot_2coords(data, outdir)
     generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
             pruningparam, palettehex, outdir)
     plot_dendrogram_clusters(data, partsz, distribs, 'single', metric,
