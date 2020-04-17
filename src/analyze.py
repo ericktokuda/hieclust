@@ -7,7 +7,7 @@ import logging
 from os.path import join as pjoin
 from logging import debug, info
 import os
-
+import time
 import numpy as np
 
 import matplotlib; matplotlib.use('Agg')
@@ -15,24 +15,36 @@ from matplotlib import pyplot as plt; plt.style.use('ggplot')
 import matplotlib.cm as cm
 from matplotlib.transforms import blended_transform_factory
 from matplotlib.lines import Line2D
-from matplotlib.patches import Circle
-from mpl_toolkits.mplot3d import Axes3D
 
-from scipy.cluster.hierarchy import dendrogram, linkage
-from scipy.cluster.hierarchy import cophenet
-from scipy.spatial.distance import pdist
-from scipy.cluster.hierarchy import inconsistent
-import scipy.stats as stats
-from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
 import pandas as pd
 
-from sklearn import datasets
 import imageio
 import scipy
 import inspect
 import igraph
+
 import utils
+
+##########################################################
+def concat_results(resdir):
+    info(inspect.stack()[0][3] + '()')
+    filenames = ['resultsall.csv', 'results.csv']
+
+    for f in filenames:
+        dfpath = pjoin(resdir, f)
+        if os.path.exists(dfpath):
+            info('Loading {}'.format(dfpath))
+            return pd.read_csv(dfpath, sep='|')
+
+    csvs = []
+    for d in os.listdir(resdir):
+        respath = pjoin(resdir, d, 'results.csv')
+        if not os.path.exists(respath): continue
+        csvs.append(pd.read_csv(respath, sep='|'))
+    resdf = pd.concat(csvs, axis=0, ignore_index=True)
+    resdf.to_csv(dfpath, sep='|', index=False)
+    return resdf
 
 ##########################################################
 def plot_parallel(df, colours, ax, fig):
@@ -87,7 +99,7 @@ def include_icons(iconpaths, fig):
         newax.axis('off')
 
 ##########################################################
-def plot_parallel_all(df, outdir):
+def plot_parallel_all(df, iconsdir, outdir):
     info(inspect.stack()[0][3] + '()')
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
@@ -112,7 +124,7 @@ def plot_parallel_all(df, outdir):
                  transform = axs[i, 0].transAxes
                  )
 
-    iconpaths = [ pjoin(outdir, 'icon_' + f + '.png') for f in df[df.dim==2].distrib ]
+    iconpaths = [ pjoin(iconsdir, 'icon_' + f + '.png') for f in df[df.dim==2].distrib ]
 
     include_icons(iconpaths, fig)
 
@@ -336,44 +348,30 @@ def pca(xin):
     return a, evecs, evals
 
 ##########################################################
-def concat_results(resdir, outfile='resultsall.csv'):
-    info(inspect.stack()[0][3] + '()')
-    dfpath = pjoin(resdir, outfile)
-    if os.path.exists(dfpath):
-        return pd.read_csv(dfpath, sep='|')
-
-    csvs = []
-    for d in os.listdir(resdir):
-        respath = pjoin(resdir, d, 'results.csv')
-        if not os.path.exists(respath): continue
-        csvs.append(pd.read_csv(respath, sep='|'))
-    resdf = pd.concat(csvs, axis=0, ignore_index=True)
-    resdf.to_csv(dfpath, sep='|', index=False)
-    return resdf
-
-##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ndims', type=int, default=2,
-                        help='Dimensionality of the space')
-    parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
-    parser.add_argument('--resdir', default='/tmp/', help='Output directory')
-    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--pardir', default='/tmp/',
+            help='Path to the folder containing results[all].csv')
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.INFO)
 
-    outdir = pjoin(args.resdir, 'charts/')
-    if not os.path.isdir(outdir): os.mkdir(outdir)
+    t0 = time.time()
+    outdir = pjoin(args.pardir, 'figsresults/')
+    iconsdir = pjoin(args.pardir, 'figsarticle/')
 
-    np.set_printoptions(precision=5, suppress=True)
-    np.random.seed(args.seed)
+    if not os.path.isdir(outdir): os.mkdir(outdir)
+    if not os.path.isdir(iconsdir):
+        info('Icons path {} does not exist,'.format(iconsdir));
+        info('run src/createfigures.py first!');
+        return
+
+    np.random.seed(0)
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    metric = 'euclidean'
 
-    resdf = concat_results(args.resdir)
+    resdf = concat_results(args.pardir)
 
     #TODO: load from resdir folder
     distribs = np.unique(resdf.distrib)
@@ -381,13 +379,15 @@ def main():
     clrelsize = .3
     pruningparam = .02
 
-    plot_parallel_all(resdf, outdir)
+    plot_parallel_all(resdf, iconsdir, outdir)
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
     for nclusters in ['1', '2']:
         filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
         methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, outdir)
         plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
         plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    info('Elapsed time:{}'.format(time.time()-t0))
+    info('Results are in {}'.format(outdir))
     # featurespath = pjoin(outdir)
     # plot_pca(featurespath)
     # return

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Benchmark on hierarchical clustering methods
+"""Benchmark on hierarchical clustering methods.
+python src/batch.py
+
 """
 
 import argparse
@@ -9,6 +11,7 @@ from logging import debug, info
 import os
 import inspect
 import numpy as np
+import time
 
 import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
@@ -152,7 +155,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
     filename = pjoin(outdir, 'nimprec.csv')
     pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
 
-    gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
+    gtruths = compute_gtruth_vectors(distribs, nrealizations)
     diffnorms, winners = compute_rel_to_gtruth_difference(
             accrel, gtruths, distribs, linkagemeths, nrealizations)
 
@@ -218,21 +221,23 @@ def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ndims', type=int, default=2,
-                        help='Dimensionality of the space')
-    parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
-    parser.add_argument('--nrealizations', type=int, default=400, help='Sample size')
+    parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
+    parser.add_argument('--samplesz', type=int, default=50, help='Sample size')
+    parser.add_argument('--nrealizations', type=int, default=3, help='Sample size')
     parser.add_argument('--resultspath', default='/tmp/results.csv',
                         help='all results in csv format')
-    parser.add_argument('--outdir', default='/tmp/', help='Output directory')
+    parser.add_argument('--outdir', default='/tmp/hieclust/', help='Output directory')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.INFO)
 
+    t0 = time.time()
+
     if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
-    np.set_printoptions(precision=5, suppress=True)
+    else: info('Overwriting contents of folder {}'.format(args.outdir))
+
     np.random.seed(args.seed)
 
     linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
@@ -251,6 +256,9 @@ def main():
     find_clusters_batch(distribs, args.samplesz, args.ndims, metric,
             linkagemeths, clrelsize, precthresh,
             args.nrealizations, pruningparam, palettehex, args.outdir)
+
+    info('Elapsed time:{}'.format(time.time()-t0))
+    info('Results are in {}'.format(args.outdir))
 
 ##########################################################
 if __name__ == "__main__":

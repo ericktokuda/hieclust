@@ -7,31 +7,21 @@ import logging
 from os.path import join as pjoin
 from logging import debug, info
 import os
-
+import time
 import numpy as np
+import scipy
+import inspect
 
 import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
 import matplotlib.cm as cm
-from matplotlib.transforms import blended_transform_factory
-from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
-from mpl_toolkits.mplot3d import Axes3D
 
 from scipy.cluster.hierarchy import dendrogram, linkage
-from scipy.cluster.hierarchy import cophenet
-from scipy.spatial.distance import pdist
-from scipy.cluster.hierarchy import inconsistent
-import scipy.stats as stats
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
 import pandas as pd
 
-from sklearn import datasets
-import imageio
-import scipy
-import inspect
-import igraph
 import utils
 
 ##########################################################
@@ -551,20 +541,21 @@ def plot_article_quiver(palettehex, outdir):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ndims', type=int, default=2,
-                        help='Dimensionality of the space')
-    parser.add_argument('--samplesz', type=int, default=100, help='Sample size')
-    parser.add_argument('--outdir', default='/tmp/', help='Output directory')
+    parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
+    parser.add_argument('--samplesz', type=int, default=200, help='Sample size')
+    parser.add_argument('--pardir', default='/tmp/hieclust/', help='Parent dir')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.INFO)
 
-    outdir = pjoin(args.outdir, 'figsarticle/')
-    if not os.path.isdir(outdir): os.mkdir(outdir)
+    t0 = time.time()
 
-    np.set_printoptions(precision=5, suppress=True)
+    outdir = pjoin(args.pardir, 'figsarticle')
+    if not os.path.isdir(outdir): os.mkdir(outdir)
+    else: info('Overwriting contents of folder {}'.format(outdir))
+
     np.random.seed(args.seed)
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -591,6 +582,8 @@ def main():
     plot_article_uniform_distribs_scale(palettehex, outdir)
     plot_article_gaussian_distribs_scale(palettehex, outdir)
     plot_article_quiver(palettehex, outdir)
+    info('Elapsed time:{}'.format(time.time()-t0))
+    info('Results are in {}'.format(outdir))
     
 ##########################################################
 if __name__ == "__main__":
