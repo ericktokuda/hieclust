@@ -202,13 +202,15 @@ def plot_contours(labels, outdir, icons=False):
     cmap = 'Blues'
 
     if icons:
-        figscale = .3
+        figscale = .5
         linewidth = 1
     else:
         figscale = 5
         linewidth = 3
 
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*figscale, nrows*figscale), squeeze=False)
+    fig, ax = plt.subplots(nrows, ncols,
+            figsize=(ncols*figscale, nrows*figscale), squeeze=False)
+
     # Contour plots
     mu = np.array([[0, 0]])
     r = np.array([.9])
@@ -458,10 +460,10 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
                 maxdist, clustids, palettehex, outliers)
         clsizes = []
         for clid in clustids: clsizes.append(len(utils.get_leaves(z, clid)))
-        ax[i, 1].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
-                format(clsizes, rel, prec),
-                 horizontalalignment='center', verticalalignment='center',
-                 fontsize=15, transform = ax[i, 1].transAxes)
+        # ax[i, 1].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
+                # format(clsizes, rel, prec),
+                 # horizontalalignment='center', verticalalignment='center',
+                 # fontsize=15, transform = ax[i, 1].transAxes)
 
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         xylim = np.max(np.abs(data[k])) * 1.1
@@ -476,22 +478,22 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
                  # format(samplesz, minnclusters, clsize),
                  # y=.92, fontsize=32)
 
-    # plt.tight_layout(pad=1, h_pad=2, w_pad=3)
+    plt.tight_layout(h_pad=3.5, w_pad=3.5)
     plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
 
     for i in range(nrows):
         for j in range(ncols):
-            ax[i, j].set_xticklabels([])
-            ax[i, j].set_yticklabels([])
+            # ax[i, j].set_xticklabels([])
+            # ax[i, j].set_yticklabels([])
             ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
             ax[i, j].set_ylabel('')
 
 
     labels = []
     for v in validkeys:
-        labels.append('hieclust_' + v + '_points')
-        labels.append('hieclust_' + v + '_dendr')
-    export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf')
+        labels.append('hieclust_' + v + '_points_'+linkagemeth)
+        labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
+    export_individual_axis(ax, fig, labels, outdir, pad=0.25, prefix='', fmt='pdf')
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -559,27 +561,62 @@ def plot_combinations(dforig, label, outdir):
     clusters = np.unique(dforig['target'])
 
     for i, comb in enumerate(combs):
-        fig, ax = plt.subplots(figsize=(s, s))
-        for cl in clusters:
-            df = dforig[dforig['target'] == cl]
-            ax.scatter(df[comb[0]], df[comb[1]], c='brown')
-            ax.set_xlabel(comb[0])
-            ax.set_ylabel(comb[1])
-        plt.tight_layout(pad=3)
-        plt.suptitle('{} dataset'.format(label))
-        plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
-        plt.close()
+        try:
+            fig, ax = plt.subplots(figsize=(s, s))
+            for cl in clusters:
+                df = dforig[dforig['target'] == cl]
+                ax.scatter(df[comb[0]], df[comb[1]], c='brown')
+                ax.set_xlabel(comb[0])
+                ax.set_ylabel(comb[1])
+            plt.tight_layout(pad=3)
+            plt.suptitle('{} dataset'.format(label))
+            plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
+            plt.close()
+        except Exception as e:
+            info(e)
 
 ##########################################################
-def plot_real_datasets(outdir):
-    datasetsdir = 'data/'
+def plot_pca_first_coords(datasetsdir, outdir):
+    def _plot_pca(dforig, label, outdir):
+        df = dforig.select_dtypes(include=np.number)
+        x = df[~df.isin([np.nan, np.inf, -np.inf]).any(1)].values
+        transformed, eigvec, eigval = utils.pca(x)
+        plt.scatter(transformed[:, 0], transformed[:, 1])
+        plt.savefig(pjoin(outdir, '{}_pca.png'.format(label)))
+        plt.tight_layout(pad=3)
+        plt.suptitle('{} dataset'.format(label))
+        plt.close()
+
+    files = sorted(os.listdir(datasetsdir))
+    for f in files: # cached datasets
+        if not f.endswith('.csv'): continue
+        label = f.replace('.csv', '')
+        info('Plotting {}'.format(f))
+        try:
+            df = pd.read_csv(pjoin(datasetsdir, f))
+            _plot_pca(df, label, outdir)
+        except Exception as e:
+            info(e)
+
+    all = { #scikit datasets
+            'iris': sklearn.datasets.load_iris(),
+            'cancer': sklearn.datasets.load_breast_cancer(),
+            'wine': sklearn.datasets.load_wine(),
+            }
+
+    for k, v in all.items():
+        info('Plotting {}'.format(k))
+        dforig = sklearn_to_df(v)
+        _plot_pca(dforig, label, outdir)
+
+##########################################################
+def plot_real_datasets(datasetsdir, outdir):
     for f in os.listdir(datasetsdir): # cached datasets
         if not f.endswith('.csv'): continue
         info('Plotting {}'.format(f))
         df = pd.read_csv(pjoin(datasetsdir, f))
         plot_combinations(df, f.replace('.csv', ''), outdir)
 
-    return
     all = { #scikit datasets
             'iris': sklearn.datasets.load_iris(),
             'cancer': sklearn.datasets.load_breast_cancer(),
@@ -626,15 +663,19 @@ def main():
     pruningparam = 0.02
     clrelsize = 0.3 # cluster rel. size
     precthresh = 0.7
+    datasetsdir = './data/'
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(realdir)
+    plot_real_datasets(datasetsdir, realdir)
+    plot_pca_first_coords(datasetsdir, realdir)
     return
     data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
     plot_2coords(data, outdir)
     generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
             pruningparam, palettehex, outdir)
+    plot_dendrogram_clusters(data, partsz, distribs, 'ward', metric,
+            clrelsize, pruningparam, palettehex, outdir)
     plot_dendrogram_clusters(data, partsz, distribs, 'single', metric,
             clrelsize, pruningparam, palettehex, outdir)
     plot_contours(distribs, outdir)

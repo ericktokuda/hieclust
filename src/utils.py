@@ -578,3 +578,15 @@ def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
 
     plt.savefig(pjoin(outdir, 'relev_vectors_all.pdf'))
 
+##########################################################
+def pca(xin):
+    x = xin - np.mean(xin, axis=0)
+    cov = np.cov(x, rowvar = False)
+    evals , evecs = np.linalg.eig(cov)
+
+    idx = np.argsort(evals)[::-1]
+    evecs = evecs[:,idx] # each column is a eigenvector
+    evals = evals[idx]
+    a = np.dot(x, evecs)
+    return a, evecs, evals
+

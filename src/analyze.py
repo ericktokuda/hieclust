@@ -29,7 +29,7 @@ import utils
 ##########################################################
 def concat_results(resdir):
     info(inspect.stack()[0][3] + '()')
-    filenames = ['resultsall.csv', 'results.csv']
+    filenames = ['results.csv', 'resultsall.csv']
 
     for f in filenames:
         dfpath = pjoin(resdir, f)
@@ -65,7 +65,7 @@ def plot_parallel(df, colours, ax, fig):
     ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
-    ax.set_ylabel('Accumulated error', fontsize=25)
+    ax.set_ylabel('Accumulated difference', fontsize=25)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -94,7 +94,7 @@ def include_icons(iconpaths, fig):
         # sign = 0.015*(-1) ** i
         sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.17+i*.106, 0.79+sign, 0.06, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.185+i*.103, 0.79+sign, 0.06, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
@@ -116,7 +116,7 @@ def plot_parallel_all(df, iconsdir, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.6)
+    plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.65)
     for i, dim in enumerate(dims):
         plt.text(-0.12, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
@@ -324,7 +324,7 @@ def plot_pca(featurespath):
     df = df[df.linkagemeth == 'single'] # filter
     print(df.shape)
     input()
-    x, evecs, evals = pca(df[cols].values)
+    x, evecs, evals = utils.pca(df[cols].values)
     # distribs = np.unique(df.distrib)
     # for distrib in distribs:
     plt.scatter(x[:, 0], x[:, 1], label=distrib)
@@ -332,20 +332,12 @@ def plot_pca(featurespath):
     # plt.scatter(x[:, 0], x[:, 1], label=df.distrib.values)
     plt.legend()
     plt.savefig('/tmp/out.png')
-    # pca()
-    # return
 
 ##########################################################
-def pca(xin):
-    x = xin - np.mean(xin, axis=0)
-    cov = np.cov(x, rowvar = False)
-    evals , evecs = np.linalg.eig(cov)
-
-    idx = np.argsort(evals)[::-1]
-    evecs = evecs[:,idx] # each column is a eigenvector
-    evals = evals[idx]
-    a = np.dot(x, evecs)
-    return a, evecs, evals
+def filters_by_dim(resdf, dims):
+    info(inspect.stack()[0][3] + '()')
+    resdf = resdf[resdf.dim.isin(dims)]
+    return resdf
 
 ##########################################################
 def main():
@@ -374,12 +366,10 @@ def main():
     print(len(palettehex))
 
     resdf = concat_results(args.pardir)
+    resdf = filters_by_dim(resdf, [2, 3, 4, 5, 10])
 
-    #TODO: load from resdir folder
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
-    clrelsize = .3
-    pruningparam = .02
 
     plot_parallel_all(resdf, iconsdir, outdir)
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
