@@ -79,9 +79,9 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
         link_color_func=lambda k: colors[k],
     )
     if avgheight > 0:
-        ax.axhline(y=avgheight/maxh, linestyle='--')
+        ax.axhline(y=avgheight/maxh, linestyle='--', linewidth=3)
     if maxheight > 0:
-        ax.axhline(y=maxheight/maxh, linestyle='--', c='b', alpha=.5)
+        ax.axhline(y=maxheight/maxh, linestyle='--', c='b', alpha=.5, linewidth=3)
     return colors[:n]
 
 ##########################################################
@@ -122,7 +122,10 @@ def plot_contour_uniform(mus, rs, s, ax, cmap, linewidth):
 ##########################################################
 def plot_contour_power(ndims, power, mus, s, ax, cmap, linewidth, epsilon,
         positive=False):
-    X, Y, Z = mesh_xy(-1.0, +1.0, s)
+    if len(mus) == 1:
+        X, Y, Z = mesh_xy(0, +1.0, s)
+    else:
+        X, Y, Z = mesh_xy(-1.0, +1.0, s)
     coords = np.zeros((s*s, 2), dtype=float)
     Zflat = np.zeros(s*s, dtype=float)
     # epsilon = .6
@@ -667,22 +670,23 @@ def main():
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(datasetsdir, realdir)
-    plot_pca_first_coords(datasetsdir, realdir)
-    return
+    # plot_real_datasets(datasetsdir, realdir)
+    # plot_pca_first_coords(datasetsdir, realdir)
+    # return
     data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
     plot_2coords(data, outdir)
-    generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
-            pruningparam, palettehex, outdir)
-    plot_dendrogram_clusters(data, partsz, distribs, 'ward', metric,
-            clrelsize, pruningparam, palettehex, outdir)
-    plot_dendrogram_clusters(data, partsz, distribs, 'single', metric,
-            clrelsize, pruningparam, palettehex, outdir)
-    plot_contours(distribs, outdir)
+    # generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
+            # pruningparam, palettehex, outdir)
+    # plot_dendrogram_clusters(data, partsz, distribs, 'ward', metric,
+            # clrelsize, pruningparam, palettehex, outdir)
+    # plot_dendrogram_clusters(data, partsz, distribs, 'single', metric,
+            # clrelsize, pruningparam, palettehex, outdir)
+    # return
+    # plot_contours(distribs, outdir)
     plot_contours(distribs, outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, outdir)
-    plot_article_gaussian_distribs_scale(palettehex, outdir)
-    plot_article_quiver(palettehex, outdir)
+    # plot_article_uniform_distribs_scale(palettehex, outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, outdir)
+    # plot_article_quiver(palettehex, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
     

@@ -65,7 +65,7 @@ def plot_parallel(df, colours, ax, fig):
     ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
-    ax.set_ylabel('Accumulated difference', fontsize=25)
+    ax.set_ylabel('Accum. difference', fontsize=25)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -84,7 +84,7 @@ def plot_parallel(df, colours, ax, fig):
     # axicon.set_yticks([])
 
     trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
-    line = Line2D([0, .98], [-.05, -.05], color='k', transform=trans)
+    line = Line2D([0.05, .99], [-.02, -.02], color='k', transform=trans)
     plt.tight_layout()
     fig.lines.append(line)
 
@@ -118,7 +118,7 @@ def plot_parallel_all(df, iconsdir, outdir):
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
     plt.tight_layout(rect=(0.1, 0, 1, .94), h_pad=.65)
     for i, dim in enumerate(dims):
-        plt.text(-0.12, .5, '{}-D'.format(dim),
+        plt.text(-0.15, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
                  fontsize='30',
                  transform = axs[i, 0].transAxes
@@ -372,6 +372,7 @@ def main():
     linkagemeths = resdf.columns[1:-1]
 
     plot_parallel_all(resdf, iconsdir, outdir)
+    return
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
     for nclusters in ['1', '2']:
         filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
