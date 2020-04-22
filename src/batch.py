@@ -24,13 +24,13 @@ import pandas as pd
 import utils
 
 ##########################################################
-def extract_features(maxdist, avgheight, noutliers, clustids, z):
+def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
     clsizes = [0] * 2
     for i in [0, 1]:
         if len(clustids) > i:
             clsizes[i] = len(utils.get_leaves(z, clustids[0]))
             
-    features = np.array([maxdist, avgheight, noutliers] + clsizes)
+    features = np.array([ouliersdist, avgheight, noutliers] + clsizes)
     features = np.concatenate((features, z[:, 2]))
     return features
 
@@ -87,7 +87,7 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
     # input()
 
     fh = open(pjoin(outdir, 'features.csv'), 'w')
-    header = 'distrib|linkagemeth|realiz|maxdist|avgheight|noutliers|clsize1|clsize2|'
+    header = 'distrib|linkagemeth|realiz|outliersdist|avgheight|noutliers|clsize1|clsize2|'
     header += '|'.join(['h{:03d}'.format(x) for x in range(featsize - 5)])
     print(header, file=fh)
     for l in linkagemeths:
@@ -136,11 +136,11 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
 
                 ret = utils.find_clusters(data[distrib], z, clsize,
                         minnclusters, outliersratio)
-                clustids, avgheight, maxdist, outliers = ret
+                clustids, avgheight, ouliersdist, outliers = ret
                 features[distrib][linkagemeth][r] = \
-                        extract_features(maxdist, avgheight, len(outliers), clustids, z)
+                        extract_features(ouliersdist, avgheight, len(outliers), clustids, z)
 
-                rel = utils.calculate_relevance(avgheight, maxdist)
+                rel = utils.calculate_relevance(avgheight, ouliersdist)
                 prec = utils.compute_max_precision(clustids, partsz[distrib], z)
                 ngtruth = int(distrib.split(',')[0])
                 npred = len(clustids)
