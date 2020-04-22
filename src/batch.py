@@ -87,8 +87,8 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
     # input()
 
     fh = open(pjoin(outdir, 'features.csv'), 'w')
-    header = 'distrib|linkagemeth|realiz|'
-    header += '|'.join(['h{:03d}'.format(x) for x in range(featsize)])
+    header = 'distrib|linkagemeth|realiz|maxdist|avgheight|noutliers|clsize1|clsize2|'
+    header += '|'.join(['h{:03d}'.format(x) for x in range(featsize - 5)])
     print(header, file=fh)
     for l in linkagemeths:
         for d in distribs:
@@ -224,8 +224,6 @@ def main():
     parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
     parser.add_argument('--samplesz', type=int, default=50, help='Sample size')
     parser.add_argument('--nrealizations', type=int, default=3, help='Sample size')
-    parser.add_argument('--resultspath', default='/tmp/results.csv',
-                        help='all results in csv format')
     parser.add_argument('--outdir', default='/tmp/hieclust/', help='Output directory')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
