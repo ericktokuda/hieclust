@@ -17,6 +17,7 @@ from matplotlib.transforms import blended_transform_factory
 from matplotlib.lines import Line2D
 
 from scipy.stats import pearsonr
+from scipy import stats
 import pandas as pd
 
 import imageio
@@ -313,21 +314,48 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
                 margin=80)
 
 ##########################################################
-def plot_pca(df, normval, label, outdir):
-    # print(df.distrib)
-    # df = df[df.distrib=='1,uniform'] # filter
-    print(df.shape)
-    df = df[df.linkagemeth == 'single'] # filter
-    print(df.shape)
-    input()
-    x, evecs, evals = utils.pca(df[cols].values)
-    # distribs = np.unique(df.distrib)
-    # for distrib in distribs:
-    plt.scatter(x[:, 0], x[:, 1], label=distrib)
+def find_diff_neigh(j, hs, dx, dir):
+    jj = j + dir
+    while True:
+        if dx[jj] != 0: break
+        jj = jj + dir
+    return jj, hs[jj]
 
-    # plt.scatter(x[:, 0], x[:, 1], label=df.distrib.values)
-    plt.legend()
-    plt.savefig('/tmp/out.png')
+##########################################################
+def update_zero_derivative_points(x):
+    dh = np.diff(x, axis=1, prepend=-0.01) 
+    zeroinds = np.where(dh == 0)
+
+    for i in range(len(zeroinds[0])):
+        coord = [zeroinds[0][i], zeroinds[1][i]]
+        lind, lval = find_diff_neigh(coord[1], x[coord[0], :],
+                dh[coord[0], :], -1)
+        rind, rval = find_diff_neigh(coord[1], x[coord[0], :],
+                dh[coord[0], :], +1)
+        newv = lval + ( (coord[0] - lind) / (rind - lind) ) * (rval - lval)
+        breakpoint()
+        x[coord[0], coord[1]] = newv
+    return x
+
+##########################################################
+def plot_pca(df, hcols, palettehex, ax):
+    info(inspect.stack()[0][3] + '()')
+    cols = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',') + hcols
+    x = df[cols].values
+
+    # x[:, 4:] = update_zero_derivative_points(x[:, 4:])
+    transformed, evecs, evals = utils.pca(x)
+
+    ax.scatter(transformed[:, 0], transformed[:, 1])
+    ax.set_xlabel('PC0')
+    ax.set_ylabel('PC1')
+    ax.set_title('PCA')
+
+    # for i, d in enumerate(np.unique(df.distrib)):
+        # idx = df[df.distrib == d].index
+        # t = transformed[idx, :]
+        # ax.scatter(t[:, 0], t[:, 1], label=d, c=palettehex[i])
+    # ax.legend()
 
 ##########################################################
 def filters_by_dim(resdf, dims):
@@ -336,48 +364,93 @@ def filters_by_dim(resdf, dims):
     return resdf
 
 ##########################################################
-def plot_link_heights(df, normval, label, outdir):
-    for r in np.unique(df.realiz)[:1]:
-        fig, ax = plt.subplots(3, 2, figsize=(10, 15))
-        for axidx, l in enumerate(np.unique(df.linkagemeth)):
-            for d in np.unique(df.distrib):
-                ids = df[ (df.linkagemeth == l) & (df.realiz == r) & \
-                        (df.distrib == d)].index
-                x = normval[ids, :].flatten()[5:]
-                i = int(axidx / 2)
-                j = axidx % 2
-                ax[i, j].scatter(range(len(x)), x, label=d)
-                ax[i, j].set_xlabel('Linkage id')
-                ax[i, j].set_ylabel('Relative height')
-                ax[i, j].legend()
-        ax[i, j].set_title(l)
-        outpath = pjoin(outdir, '{}_{}_{:03d}_features.pdf'.format(label, l, r))
+def plot_link_heights(dforig, hcols, palettehex, ax):
+    info(inspect.stack()[0][3] + '()')
+    for i, d in enumerate(np.unique(dforig.distrib)):
+        df = dforig[dforig.distrib == d]
+        y = df.mean()[hcols]
+        ax.scatter(range(len(y)), y, c=palettehex[i], label=d)
+    ax.set_xlabel('Linkage id')
+    ax.set_ylabel('Relative height (mean on realizations)')
+    ax.legend()
+
+##########################################################
+def plot_attrib(df, attrib, palettehex, ax):
+    nbins = 6
+    try:
+        plot_attrib_density(df, attrib, palettehex, ax)
+    except:
+        ax.clear()
+        plot_attrib_hist(df, attrib, palettehex, ax)
+
+##########################################################
+def plot_attrib_hist(dforig, attrib, palettehex, ax):
+    nbins = 6
+    for i, d in enumerate(np.unique(dforig.distrib)):
+        df = dforig[dforig.distrib == d]
+        y = df[attrib]
+        ax.hist(y, nbins, label=d, histtype='bar',
+                color=palettehex[i], alpha=0.7)
+    ax.set_xlabel(attrib)
+    ax.legend()
+
+##########################################################
+def plot_attrib_density(dforig, attrib, palettehex, ax):
+    for i, d in enumerate(np.unique(dforig.distrib)):
+        df = dforig[dforig.distrib == d]
+        y = df[attrib]
+        kde = stats.gaussian_kde(y)
+        xx = np.linspace(np.min(y), np.max(y), 100)
+        ax.plot(xx, kde(xx), c=palettehex[i], label=d)
+    ax.set_xlabel(attrib)
+    ax.legend()
+
+##########################################################
+def analyze_features(featpath, label, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
+    dforig = pd.read_csv(featpath, sep='|')
+    lasth = int(dforig.columns[-1][1:])
+    hcols = ['h{:03d}'.format(x) for x in range(lasth+1)]
+
+    maxs = np.max(dforig[hcols], axis=1)
+    normcols = ['outliersdist', 'avgheight'] + hcols
+    dforig[normcols] = dforig[normcols] / maxs[:, None]
+    dforig['clsizeavg'] = (dforig.clsize1 + dforig.clsize2) / 2
+
+    ids = np.where(dforig.clsize2 == 0)[0]
+    dforig.loc[ids, 'clsizeavg'] = dforig.clsize1
+
+    fig, ax = plt.subplots(3, 2, figsize=(10, 15))
+
+    for l in ['single']:
+        df = dforig[dforig.linkagemeth == l]
+        plot_link_heights(df, hcols, palettehex, ax[0, 0])
+
+        attribs = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',')
+        for axidx, attrib in enumerate(attribs):
+            aux = axidx + 1
+            i = int(aux / 2)
+            j = int(aux % 2)
+            plot_attrib(df, attrib, palettehex, ax[i, j])
+        
+        plot_pca(df, hcols, palettehex, ax[2, 1])
+        outpath = pjoin(outdir, 'feat_{}_{}.pdf'.format(label, l))
+        plt.tight_layout(pad=5,)
+        plt.suptitle(l)
         plt.savefig(outpath)
         plt.close()
 
 ##########################################################
-def analyze_features(featpath, label, outdir):
-    info(inspect.stack()[0][3] + '()')
-    df = pd.read_csv(featpath, sep='|')
-    normval = df[df.columns[3:]].values
-
-    for i in range(normval.shape[0]): # Data normalization by max height
-        normval[i, 1:] = normval[i, 1:] / normval[i, 0]
-        
-    plot_link_heights(df, normval, label, outdir)
-    # plot_pca(df, normval, label, outdir)
-
-##########################################################
-def analyze_features_all(pardir, outdir):
+def analyze_features_all(pardir, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     featpath = pjoin(pardir, 'features.csv')
-    if os.path.exists(featpath): analyze_features(featpath, '', outdir)
+    if os.path.exists(featpath): analyze_features(featpath, '', palettehex, outdir)
     files = sorted(os.listdir(pardir))
     for f in files:
         dirpath = pjoin(pardir, f)
         if not os.path.isdir(dirpath): continue
         if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
-        analyze_features(pjoin(dirpath, 'features.csv'), 'f', outdir)
+        analyze_features(pjoin(dirpath, 'features.csv'), f, palettehex, outdir)
 
 ##########################################################
 def main():
@@ -399,13 +472,12 @@ def main():
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     palettehex2 = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a']
-    print(len(palettehex))
 
-    resdf = concat_results(args.pardir)
-    resdf = filters_by_dim(resdf, [2, 3, 4, 5, 10])
+    # resdf = concat_results(args.pardir)
+    # resdf = filters_by_dim(resdf, [2, 3, 4, 5, 10])
 
-    distribs = np.unique(resdf.distrib)
-    linkagemeths = resdf.columns[1:-1]
+    # distribs = np.unique(resdf.distrib)
+    # linkagemeths = resdf.columns[1:-1]
 
     # plot_parallel_all(resdf, iconsdir, outdir)
     # count_method_ranking(resdf, linkagemeths, 'single', outdir)
@@ -414,7 +486,7 @@ def main():
         # methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
         # plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
         # plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
-    analyze_features_all(args.pardir, outdir)
+    analyze_features_all(args.pardir, palettehex2, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
     # return
