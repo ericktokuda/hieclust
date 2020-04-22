@@ -101,6 +101,10 @@ def include_icons(iconpaths, fig):
 ##########################################################
 def plot_parallel_all(df, iconsdir, outdir):
     info(inspect.stack()[0][3] + '()')
+    if not os.path.isdir(iconsdir):
+        info('Icons path {} does not exist,'.format(iconsdir));
+        info('run src/createfigures.py first!');
+        return
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
     colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
@@ -309,17 +313,9 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
                 margin=80)
 
 ##########################################################
-def plot_pca(featurespath):
-    df = pd.read_csv(featurespath, sep='|')
-    cols = []
-    for col in df.columns:
-        if col.startswith('h'):
-            cols.append(col)
-
+def plot_pca(df, normval, label, outdir):
     # print(df.distrib)
-    # print(df.linkagemeth)
-    print(df.distrib)
-    df = df[df.distrib=='1,uniform'] # filter
+    # df = df[df.distrib=='1,uniform'] # filter
     print(df.shape)
     df = df[df.linkagemeth == 'single'] # filter
     print(df.shape)
@@ -340,6 +336,50 @@ def filters_by_dim(resdf, dims):
     return resdf
 
 ##########################################################
+def plot_link_heights(df, normval, label, outdir):
+    for r in np.unique(df.realiz)[:1]:
+        fig, ax = plt.subplots(3, 2, figsize=(10, 15))
+        for axidx, l in enumerate(np.unique(df.linkagemeth)):
+            for d in np.unique(df.distrib):
+                ids = df[ (df.linkagemeth == l) & (df.realiz == r) & \
+                        (df.distrib == d)].index
+                x = normval[ids, :].flatten()[5:]
+                i = int(axidx / 2)
+                j = axidx % 2
+                ax[i, j].scatter(range(len(x)), x, label=d)
+                ax[i, j].set_xlabel('Linkage id')
+                ax[i, j].set_ylabel('Relative height')
+                ax[i, j].legend()
+        ax[i, j].set_title(l)
+        outpath = pjoin(outdir, '{}_{}_{:03d}_features.pdf'.format(label, l, r))
+        plt.savefig(outpath)
+        plt.close()
+
+##########################################################
+def analyze_features(featpath, label, outdir):
+    info(inspect.stack()[0][3] + '()')
+    df = pd.read_csv(featpath, sep='|')
+    normval = df[df.columns[3:]].values
+
+    for i in range(normval.shape[0]): # Data normalization by max height
+        normval[i, 1:] = normval[i, 1:] / normval[i, 0]
+        
+    plot_link_heights(df, normval, label, outdir)
+    # plot_pca(df, normval, label, outdir)
+
+##########################################################
+def analyze_features_all(pardir, outdir):
+    info(inspect.stack()[0][3] + '()')
+    featpath = pjoin(pardir, 'features.csv')
+    if os.path.exists(featpath): analyze_features(featpath, '', outdir)
+    files = sorted(os.listdir(pardir))
+    for f in files:
+        dirpath = pjoin(pardir, f)
+        if not os.path.isdir(dirpath): continue
+        if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
+        analyze_features(pjoin(dirpath, 'features.csv'), 'f', outdir)
+
+##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pardir', default='/tmp/',
@@ -354,10 +394,6 @@ def main():
     iconsdir = pjoin(args.pardir, 'figsarticle/')
 
     if not os.path.isdir(outdir): os.mkdir(outdir)
-    if not os.path.isdir(iconsdir):
-        info('Icons path {} does not exist,'.format(iconsdir));
-        info('run src/createfigures.py first!');
-        return
 
     np.random.seed(0)
 
@@ -371,18 +407,16 @@ def main():
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    plot_parallel_all(resdf, iconsdir, outdir)
-    return
-    count_method_ranking(resdf, linkagemeths, 'single', outdir)
-    for nclusters in ['1', '2']:
-        filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
-        plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
-        plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    # plot_parallel_all(resdf, iconsdir, outdir)
+    # count_method_ranking(resdf, linkagemeths, 'single', outdir)
+    # for nclusters in ['1', '2']:
+        # filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
+        # methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
+        # plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
+        # plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    analyze_features_all(args.pardir, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
-    # featurespath = pjoin(outdir)
-    # plot_pca(featurespath)
     # return
 
 ##########################################################
