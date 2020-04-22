@@ -28,7 +28,7 @@ def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
     clsizes = [0] * 2
     for i in [0, 1]:
         if len(clustids) > i:
-            clsizes[i] = len(utils.get_leaves(z, clustids[0]))
+            clsizes[i] = len(utils.get_leaves(z, clustids[i]))
             
     features = np.array([ouliersdist, avgheight, noutliers] + clsizes)
     features = np.concatenate((features, z[:, 2]))
