@@ -557,7 +557,7 @@ def sklearn_to_df(sklearn_dataset):
 
 ##########################################################
 def plot_combinations(dforig, label, outdir):
-    s = 5
+    s = 4
     cols = list(dforig.columns)
     cols.remove('target')
     combs = list(itertools.combinations(cols, 2))
@@ -565,10 +565,10 @@ def plot_combinations(dforig, label, outdir):
 
     for i, comb in enumerate(combs):
         try:
-            fig, ax = plt.subplots(figsize=(s, s))
+            fig, ax = plt.subplots(figsize=(s, .8*s))
             for cl in clusters:
                 df = dforig[dforig['target'] == cl]
-                ax.scatter(df[comb[0]], df[comb[1]], c='brown')
+                ax.scatter(df[comb[0]], df[comb[1]], c='#E24A33')
                 ax.set_xlabel(comb[0])
                 ax.set_ylabel(comb[1])
             plt.tight_layout(pad=3)
@@ -580,14 +580,15 @@ def plot_combinations(dforig, label, outdir):
 
 ##########################################################
 def plot_pca_first_coords(datasetsdir, outdir):
+    s = 4
     def _plot_pca(dforig, label, outdir):
         df = dforig.select_dtypes(include=np.number)
         x = df[~df.isin([np.nan, np.inf, -np.inf]).any(1)].values
         transformed, eigvec, eigval = utils.pca(x)
-        plt.scatter(transformed[:, 0], transformed[:, 1])
-        plt.savefig(pjoin(outdir, '{}_pca.png'.format(label)))
-        plt.tight_layout(pad=3)
+        fig, ax = plt.subplots(figsize=(s, .8*s))
+        ax.scatter(transformed[:, 0], transformed[:, 1])
         plt.suptitle('{} dataset'.format(label))
+        plt.savefig(pjoin(outdir, '{}_pca.png'.format(label)))
         plt.close()
 
     files = sorted(os.listdir(datasetsdir))
@@ -614,7 +615,7 @@ def plot_pca_first_coords(datasetsdir, outdir):
 
 ##########################################################
 def plot_real_datasets(datasetsdir, outdir):
-    for f in os.listdir(datasetsdir): # cached datasets
+    for f in sorted(os.listdir(datasetsdir)): # cached datasets
         if not f.endswith('.csv'): continue
         info('Plotting {}'.format(f))
         df = pd.read_csv(pjoin(datasetsdir, f))
@@ -670,11 +671,12 @@ def main():
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    # plot_real_datasets(datasetsdir, realdir)
-    # plot_pca_first_coords(datasetsdir, realdir)
+    plot_real_datasets(datasetsdir, realdir)
+    plot_pca_first_coords(datasetsdir, realdir)
     # return
-    data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
-    plot_2coords(data, outdir)
+    # data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
+    return
+    # plot_2coords(data, outdir)
     # generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
             # pruningparam, palettehex, outdir)
     # plot_dendrogram_clusters(data, partsz, distribs, 'ward', metric,
@@ -683,7 +685,7 @@ def main():
             # clrelsize, pruningparam, palettehex, outdir)
     # return
     # plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
+    # plot_contours(distribs, outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, outdir)
     # plot_article_gaussian_distribs_scale(palettehex, outdir)
     # plot_article_quiver(palettehex, outdir)
