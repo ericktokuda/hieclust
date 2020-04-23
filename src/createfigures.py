@@ -571,8 +571,8 @@ def plot_combinations(dforig, label, outdir):
                 ax.scatter(df[comb[0]], df[comb[1]], c='#E24A33')
                 ax.set_xlabel(comb[0])
                 ax.set_ylabel(comb[1])
-            plt.tight_layout(pad=3)
-            plt.suptitle('{} dataset'.format(label))
+            ax.set_title('{}'.format(label))
+            plt.tight_layout()
             plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
             plt.close()
         except Exception as e:
@@ -587,7 +587,8 @@ def plot_pca_first_coords(datasetsdir, outdir):
         transformed, eigvec, eigval = utils.pca(x)
         fig, ax = plt.subplots(figsize=(s, .8*s))
         ax.scatter(transformed[:, 0], transformed[:, 1])
-        plt.suptitle('{} dataset'.format(label))
+        ax.set_title('{} (PCA)'.format(label))
+        plt.tight_layout()
         plt.savefig(pjoin(outdir, '{}_pca.png'.format(label)))
         plt.close()
 
