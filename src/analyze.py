@@ -219,7 +219,6 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
 
             # Create the figure
             ax.legend(handles=legend_elements, loc='lower right')
-            # breakpoint()
             
             # ax.legend(title='Dimension', loc='lower right')
             ax.set_xlabel(m1)
@@ -333,29 +332,45 @@ def update_zero_derivative_points(x):
         rind, rval = find_diff_neigh(coord[1], x[coord[0], :],
                 dh[coord[0], :], +1)
         newv = lval + ( (coord[0] - lind) / (rind - lind) ) * (rval - lval)
-        breakpoint()
         x[coord[0], coord[1]] = newv
     return x
 
 ##########################################################
-def plot_pca(df, hcols, palettehex, ax):
+def plot_pca(dforig, cols, colstointerpolate, palettehex, label, ax):
     info(inspect.stack()[0][3] + '()')
-    cols = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',') + hcols
+    df = dforig.copy()
+
+    if len(colstointerpolate) > 0:
+        xx = df[colstointerpolate].values
+        df[colstointerpolate] = update_zero_derivative_points(xx)
+
     x = df[cols].values
-
-    # x[:, 4:] = update_zero_derivative_points(x[:, 4:])
     transformed, evecs, evals = utils.pca(x)
+    # print(label, len(cols), transformed.shape)
 
-    ax.scatter(transformed[:, 0], transformed[:, 1])
+    contribs = []
+
+    for i in [0, 1]:
+        evec = np.abs(evecs[:, i])
+        contrib = evec / np.sum(evec)
+        ids = np.argsort(contrib)[-1:]
+        contrib = contrib[ids]
+        contribcols = np.array(cols)[ids]
+        contribs.append('{} ({:.02f})'.format(contribcols[0], contrib[0]))
+
+    t = 0
+    for i, d in enumerate(np.unique(df.distrib)):
+        idx = np.where(df.distrib == d)[0]
+        # print(np.linalg.norm(transformed[idx, :] - t))
+        t = transformed[idx, :]
+        ax.scatter(t[:, 0], t[:, 1], label=d, c=palettehex[i], alpha=.7, s=4)
+
+    ax.text(.3, .8, 'PC0:{}\nPC1:{}'.format(contribs[0], contribs[1]))
     ax.set_xlabel('PC0')
     ax.set_ylabel('PC1')
-    ax.set_title('PCA')
-
-    # for i, d in enumerate(np.unique(df.distrib)):
-        # idx = df[df.distrib == d].index
-        # t = transformed[idx, :]
-        # ax.scatter(t[:, 0], t[:, 1], label=d, c=palettehex[i])
-    # ax.legend()
+    ax.set_title('{} (PCA)'.format(label))
+    ax.legend(fancybox=True, framealpha=0.5)
+    return transformed
 
 ##########################################################
 def filters_by_dim(resdf, dims):
@@ -369,7 +384,7 @@ def plot_link_heights(dforig, hcols, palettehex, ax):
     for i, d in enumerate(np.unique(dforig.distrib)):
         df = dforig[dforig.distrib == d]
         y = df.mean()[hcols]
-        ax.scatter(range(len(y)), y, c=palettehex[i], label=d)
+        ax.scatter(range(len(y)), y, c=palettehex[i], label=d, s=4)
     ax.set_xlabel('Linkage id')
     ax.set_ylabel('Relative height (mean on realizations)')
     ax.legend()
@@ -406,6 +421,15 @@ def plot_attrib_density(dforig, attrib, palettehex, ax):
     ax.legend()
 
 ##########################################################
+def plot_fitted_heights(df, nheights, coeffsin, palettehex, ax):
+    from numpy.polynomial.polynomial import polyval
+    coeffs = list(reversed(coeffsin))
+    # xs = list(range(nheights))
+    # ys = polyval(xs, coeffs)
+    # ax.plot(xs, ys)
+    # TODO: need to get the mean
+
+##########################################################
 def analyze_features(featpath, label, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     dforig = pd.read_csv(featpath, sep='|')
@@ -417,23 +441,48 @@ def analyze_features(featpath, label, palettehex, outdir):
     dforig[normcols] = dforig[normcols] / maxs[:, None]
     dforig['clsizeavg'] = (dforig.clsize1 + dforig.clsize2) / 2
 
-    ids = np.where(dforig.clsize2 == 0)[0]
+    ids = np.where(dforig.clsize2 == 0)[0] # compute clsizeavg
     dforig.loc[ids, 'clsizeavg'] = dforig.clsize1
 
-    fig, ax = plt.subplots(3, 2, figsize=(10, 15))
+    degr = 3 # poly 3rd degree
+    coeffcols = ['coeff{}'.format(i) for i in range(degr+1)]
+    coeffs = np.ndarray((dforig.shape[0], 4), dtype=float)
+    residuals = np.ndarray((dforig.shape[0], 4), dtype=float)
+    xx = np.array(range(len(hcols)))
+    for idx, row in dforig.iterrows():
+        yy = row[hcols].values.astype(float)
+        coeff = np.polyfit(xx, yy, degr)
+        r, _, _, _, _ = np.polyfit(xx, yy, degr, full=True)
+        coeffs[idx, :] = coeff
+        residuals[idx, :] = r
 
+    for j in range(coeffs.shape[1]):
+        dforig[coeffcols[j]] = coeffs[:, j]
+        dforig['res'+coeffcols[j]] = residuals[:, j]
+        
+    nrows = 5; ncols = 2; figscale = 5
+    fig, ax = plt.subplots(nrows, ncols,
+            figsize=(ncols*figscale, nrows*(.8*figscale)))
+
+    cols = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',')
     for l in ['single']:
         df = dforig[dforig.linkagemeth == l]
-        plot_link_heights(df, hcols, palettehex, ax[0, 0])
+        # plot_link_heights(df, hcols, palettehex, ax[0, 0])
 
         attribs = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',')
         for axidx, attrib in enumerate(attribs):
             aux = axidx + 1
             i = int(aux / 2)
             j = int(aux % 2)
-            plot_attrib(df, attrib, palettehex, ax[i, j])
+            # plot_attrib(df, attrib, palettehex, ax[i, j])
         
-        plot_pca(df, hcols, palettehex, ax[2, 1])
+        t1 = plot_pca(df, cols, [], palettehex, 'Without heights ', ax[2, 1])
+        t2 = plot_pca(df, cols + hcols, hcols, palettehex, 'Including heights ',
+                ax[3, 0])
+        t3 = plot_pca(df, cols + coeffcols, [], palettehex,
+                'Including heights fit (poly3)', ax[3, 1])
+        plot_link_heights(df, hcols, palettehex, ax[4, 0])
+        plot_fitted_heights(df, len(hcols), coeffs, palettehex, ax[4, 0])
         outpath = pjoin(outdir, 'feat_{}_{}.pdf'.format(label, l))
         plt.tight_layout(pad=5,)
         plt.suptitle(l)
@@ -471,7 +520,8 @@ def main():
     np.random.seed(0)
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    palettehex2 = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a']
+    # palettehex2 = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a']
+    palettehex2 = palettehex + ['#a66139']
 
     # resdf = concat_results(args.pardir)
     # resdf = filters_by_dim(resdf, [2, 3, 4, 5, 10])
