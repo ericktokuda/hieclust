@@ -560,6 +560,7 @@ def plot_combinations(dforig, label, outdir):
     s = 4
     cols = list(dforig.columns)
     cols.remove('target')
+    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     combs = list(itertools.combinations(cols, 2))
     clusters = np.unique(dforig['target'])
 
@@ -568,12 +569,12 @@ def plot_combinations(dforig, label, outdir):
             fig, ax = plt.subplots(figsize=(s, .8*s))
             for cl in clusters:
                 df = dforig[dforig['target'] == cl]
-                ax.scatter(df[comb[0]], df[comb[1]], c='#E24A33')
+                ax.scatter(df[comb[0]], df[comb[1]], c=palettehex[1])
                 ax.set_xlabel(comb[0])
                 ax.set_ylabel(comb[1])
             ax.set_title('{}'.format(label))
             plt.tight_layout()
-            plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
+            plt.savefig(pjoin(outdir, '{}_{:03d}.pdf'.format(label, i)))
             plt.close()
         except Exception as e:
             info(e)
@@ -586,10 +587,11 @@ def plot_pca_first_coords(datasetsdir, outdir):
         x = df[~df.isin([np.nan, np.inf, -np.inf]).any(1)].values
         transformed, eigvec, eigval = utils.pca(x)
         fig, ax = plt.subplots(figsize=(s, .8*s))
-        ax.scatter(transformed[:, 0], transformed[:, 1])
+        palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        ax.scatter(transformed[:, 0], transformed[:, 1], c=palettehex[1])
         ax.set_title('{} (PCA)'.format(label))
         plt.tight_layout()
-        plt.savefig(pjoin(outdir, '{}_pca.png'.format(label)))
+        plt.savefig(pjoin(outdir, '{}_pca.pdf'.format(label)))
         plt.close()
 
     files = sorted(os.listdir(datasetsdir))
