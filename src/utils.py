@@ -17,6 +17,7 @@ import scipy
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import cdist
 import pandas as pd
+from sklearn import preprocessing
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -147,13 +148,13 @@ def shift_clusters(x, partsz, alpha):
     Returns:
     np.ndarray: shifted cluters
     """
-    ncenters = len(partsz)
+    ndims = x.shape[1]
     d1 = x[:partsz[0]]
     d2 = x[partsz[0]:]
     stdavg = np.mean([np.std(d1), np.std(d2)])
 
     d = alpha * stdavg / 2.0
-    mu = d / np.sqrt(ncenters)
+    mu = d / np.sqrt(ndims)
     shifted = x.copy()
 
     shifted[:partsz[0]] += (+mu) - np.mean(d1)
@@ -579,8 +580,11 @@ def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
     plt.savefig(pjoin(outdir, 'relev_vectors_all.pdf'))
 
 ##########################################################
-def pca(xin):
-    x = xin - np.mean(xin, axis=0)
+def pca(xin, normalize=False):
+    if normalize:
+        x = preprocessing.normalize(xin, axis=0)
+    else:
+        x = xin - np.mean(xin, axis=0) # just centralize
     cov = np.cov(x, rowvar = False)
     evals , evecs = np.linalg.eig(cov)
 
