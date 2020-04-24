@@ -345,7 +345,7 @@ def plot_pca(dforig, cols, colstointerpolate, palettehex, label, ax):
         df[colstointerpolate] = update_zero_derivative_points(xx)
 
     x = df[cols].values
-    transformed, evecs, evals = utils.pca(x)
+    transformed, evecs, evals = utils.pca(x, normalize=True)
     # print(label, len(cols), transformed.shape)
 
     contribs = []
@@ -365,11 +365,12 @@ def plot_pca(dforig, cols, colstointerpolate, palettehex, label, ax):
         t = transformed[idx, :]
         ax.scatter(t[:, 0], t[:, 1], label=d, c=palettehex[i], alpha=.7, s=4)
 
-    ax.text(.3, .8, 'PC0:{}\nPC1:{}'.format(contribs[0], contribs[1]))
+    ax.text(.1, .8, 'PC0:{}\nPC1:{}'.format(contribs[0], contribs[1]),
+            transform=ax.transAxes)
     ax.set_xlabel('PC0')
     ax.set_ylabel('PC1')
-    ax.set_title('{} (PCA)'.format(label))
-    ax.legend(fancybox=True, framealpha=0.5)
+    ax.set_title('PCA - {}'.format(label))
+    ax.legend(fancybox=True, framealpha=0.8)
     return transformed
 
 ##########################################################
@@ -386,7 +387,8 @@ def plot_link_heights(dforig, hcols, palettehex, ax):
         y = df.mean()[hcols]
         ax.scatter(range(len(y)), y, c=palettehex[i], label=d, s=4)
     ax.set_xlabel('Linkage id')
-    ax.set_ylabel('Relative height (mean on realizations)')
+    ax.set_ylabel('Relative height')
+    ax.set_title('Average rel. height')
     ax.legend()
 
 ##########################################################
@@ -397,6 +399,7 @@ def plot_attrib(df, attrib, palettehex, ax):
     except:
         ax.clear()
         plot_attrib_hist(df, attrib, palettehex, ax)
+    ax.set_title('{} distribution'.format(attrib))
 
 ##########################################################
 def plot_attrib_hist(dforig, attrib, palettehex, ax):
@@ -421,13 +424,17 @@ def plot_attrib_density(dforig, attrib, palettehex, ax):
     ax.legend()
 
 ##########################################################
-def plot_fitted_heights(df, nheights, coeffsin, palettehex, ax):
-    from numpy.polynomial.polynomial import polyval
-    coeffs = list(reversed(coeffsin))
-    # xs = list(range(nheights))
-    # ys = polyval(xs, coeffs)
-    # ax.plot(xs, ys)
-    # TODO: need to get the mean
+def plot_fitted_heights(dforig, nheights, coeffcols, palettehex, ax):
+    # from numpy.polynomial.polynomial import polyval
+    xs = list(range(nheights))
+    for i, d in enumerate(np.unique(dforig.distrib)):
+        df = dforig[dforig.distrib == d]
+        coeffs = np.mean(df[coeffcols], axis=0) # highest degree coeff first
+        ys = np.polyval(coeffs, xs)
+        # breakpoint()
+        ax.plot(xs, ys, c=palettehex[i], label=d)
+        ax.set_title('HeightsFit (poly3)')
+        ax.legend()
 
 ##########################################################
 def analyze_features(featpath, label, palettehex, outdir):
@@ -445,7 +452,7 @@ def analyze_features(featpath, label, palettehex, outdir):
     dforig.loc[ids, 'clsizeavg'] = dforig.clsize1
 
     degr = 3 # poly 3rd degree
-    coeffcols = ['coeff{}'.format(i) for i in range(degr+1)]
+    coeffcols = ['coeff{}'.format(i) for i in range(degr, -1, -1)]
     coeffs = np.ndarray((dforig.shape[0], 4), dtype=float)
     residuals = np.ndarray((dforig.shape[0], 4), dtype=float)
     xx = np.array(range(len(hcols)))
@@ -467,25 +474,25 @@ def analyze_features(featpath, label, palettehex, outdir):
     cols = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',')
     for l in ['single']:
         df = dforig[dforig.linkagemeth == l]
-        # plot_link_heights(df, hcols, palettehex, ax[0, 0])
 
         attribs = 'outliersdist,avgheight,noutliers,clsizeavg'.split(',')
         for axidx, attrib in enumerate(attribs):
-            aux = axidx + 1
+            aux = axidx
             i = int(aux / 2)
             j = int(aux % 2)
-            # plot_attrib(df, attrib, palettehex, ax[i, j])
+            plot_attrib(df, attrib, palettehex, ax[i, j])
         
-        t1 = plot_pca(df, cols, [], palettehex, 'Without heights ', ax[2, 1])
-        t2 = plot_pca(df, cols + hcols, hcols, palettehex, 'Including heights ',
-                ax[3, 0])
-        t3 = plot_pca(df, cols + coeffcols, [], palettehex,
-                'Including heights fit (poly3)', ax[3, 1])
-        plot_link_heights(df, hcols, palettehex, ax[4, 0])
-        plot_fitted_heights(df, len(hcols), coeffs, palettehex, ax[4, 0])
+        plot_link_heights(df, hcols, palettehex, ax[2, 0])
+        plot_fitted_heights(df, len(hcols), coeffcols, palettehex, ax[2, 1])
+
+        t1 = plot_pca(df, cols, [], palettehex, 'Clfeatures ', ax[3, 0])
+        t2 = plot_pca(df, hcols, hcols, palettehex, 'HeightsAll', ax[3, 1])
+        t3 = plot_pca(df, cols + hcols, hcols, palettehex, 'ClFeatures+HeightsAll',
+                ax[4, 0])
+        t4 = plot_pca(df, cols + coeffcols, [], palettehex,
+                'ClFeatures+HeightsFit', ax[4, 1])
         outpath = pjoin(outdir, 'feat_{}_{}.pdf'.format(label, l))
-        plt.tight_layout(pad=5,)
-        plt.suptitle(l)
+        plt.tight_layout(h_pad=2.5, w_pad=2)
         plt.savefig(outpath)
         plt.close()
 
@@ -520,7 +527,6 @@ def main():
     np.random.seed(0)
 
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    # palettehex2 = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a']
     palettehex2 = palettehex + ['#a66139']
 
     # resdf = concat_results(args.pardir)
