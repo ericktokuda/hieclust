@@ -85,8 +85,9 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
     return colors[:n]
 
 ##########################################################
-def plot_2coords(data, palettehex, outdir):
+def plot_2coords(distribs, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
+    data, partsz = utils.generate_data(distribs, 200, 2)
     figscale = 4
     fig, axs = plt.subplots(1, len(data.keys()), squeeze=False,
                 figsize=(len(data.keys())*figscale, 1*figscale))
@@ -186,18 +187,8 @@ def plot_contour_gaussian(ndims, mus, covs, s, ax, cmap, linewidth):
     return ax
 
 ##########################################################
-def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
-    n = ax.shape[0]*ax.shape[1]
-    for k in range(n):
-        i = k // ax.shape[1]
-        j = k  % ax.shape[1]
-        coordsys = fig.dpi_scale_trans.inverted()
-        extent = ax[i, j].get_window_extent().transformed(coordsys)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.' + fmt),
-                      bbox_inches=extent.expanded(1+pad, 1+pad))
-
-##########################################################
 def plot_contours(labels, outdir, icons=False):
+    info(inspect.stack()[0][3] + '()')
     ndims = 2
     s = 500
     nrows = 2
@@ -246,7 +237,7 @@ def plot_contours(labels, outdir, icons=False):
 
 
     plt.tight_layout(pad=4)
-    plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
+    if not icons: plt.savefig(pjoin(outdir, 'contour_all_{}d.pdf'.format(ndims)))
 
     for i in range(ax[:].shape[0]):
         for j in range(ax[:].shape[1]):
@@ -261,14 +252,16 @@ def plot_contours(labels, outdir, icons=False):
                 # ax[i, j].set_xticks([])
 
     if icons:
-        export_individual_axis(ax, fig, labels, outdir, 0, 'icon_', 'png')
+        utils.export_individual_axis(ax, fig, labels, outdir, 0, 'icon_', 'png')
     else:
-        export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
+        utils.export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
-def generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam,
-        palette, outdir):
+def generate_dendrograms_all(distribs, metric, linkagemeths, palette, outdir):
     info(inspect.stack()[0][3] + '()')
+    pruningparam = 0.1
+    clrelsize = 0.3 # cluster rel. size
+    data, partsz = utils.generate_data(distribs, 200, 2)
     minnclusters = 2
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
@@ -314,7 +307,7 @@ def generate_dendrograms_all(data, metric, linkagemeths, clrelsize, pruningparam
     for i, k in enumerate(data):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-    export_individual_axis(ax[0, 1:].reshape(len(linkagemeths), 1), fig, linkagemeths,
+    utils.export_individual_axis(ax[0, 1:].reshape(len(linkagemeths), 1), fig, linkagemeths,
                            outdir, 0.2, 'dendrogram_uniform_')
     plt.tight_layout(pad=4)
 
@@ -337,7 +330,7 @@ def plot_article_uniform_distribs_scale(palette, outdir):
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
 
-    export_individual_axis(ax, fig, ['2,uniform,rad{}'.format(r)],
+    utils.export_individual_axis(ax, fig, ['2,uniform,rad{}'.format(r)],
             outdir, 0.3, 'points_')
 
 ##########################################################
@@ -383,18 +376,18 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     ax[0, 0].set_xticks([-2.0, -1.0, 0, +1.0, +2.0])
     ax[0, 0].set_yticks([-2.0, -1.0, 0, +1.0, +2.0])
 
-    export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
+    utils.export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
 ##########################################################
-def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrelsize,
-        pruningparam, palettehex, outdir):
-
+def plot_dendrogram_clusters(distribs, linkagemeth, metric, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
+    data, partsz = utils.generate_data(distribs, 200, 2)
+    clrelsize = .3
     minnclusters = 2
-    nrows = len(validkeys)
+    nrows = len(distribs)
     ndistribs = nrows
-    ncols = 4
-    degr = 3
+    ncols = 2
+    pruningparam = .02
     samplesz = data[list(data.keys())[0]].shape[0]
     ndims = data[list(data.keys())[0]].shape[1]
     clsize = int(clrelsize * samplesz)
@@ -418,7 +411,7 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
         fig, ax = plt.subplots(nrows, ncols,
                 figsize=(ncols*figscale, nrows*figscale), squeeze=False)
 
-    for i, k in enumerate(validkeys):
+    for i, k in enumerate(distribs):
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
@@ -441,17 +434,7 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
         ax[i, 0].set_xlim(-xylim, +xylim)
         ax[i, 0].set_ylim(-xylim, +xylim)
 
-        ys = z[:, 2]
-        xx = list(range(len(ys)))
-        ax[i, 2].scatter(xx, ys, c='k', s=10)
-
-        coeffs = np.polyfit(xx, ys, degr)
-        yy = np.polyval(coeffs, xx)
-        ax[i, 3].scatter(xx, ys, c='k', s=10)
-        ax[i, 3].plot(xx, yy, c='gray', linewidth=5)
-
-
-    for i, k in enumerate(validkeys):
+    for i, k in enumerate(distribs):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
     plt.tight_layout(h_pad=3.5, w_pad=3.5)
@@ -464,14 +447,12 @@ def plot_dendrogram_clusters(data, partsz, validkeys, linkagemeth, metric, clrel
             ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
             ax[i, j].set_ylabel('')
 
-
     labels = []
-    for v in validkeys:
+    for v in distribs:
         labels.append('hieclust_' + v + '_points_'+linkagemeth)
         labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
-        labels.append('hieclust_' + v + '_heights_'+linkagemeth)
-        labels.append('hieclust_' + v + '_heightsfit_'+linkagemeth)
-    export_individual_axis(ax, fig, labels, outdir, pad=0.25, prefix='', fmt='png')
+
+    utils.export_individual_axis(ax, fig, labels, outdir, pad=.5, fmt='pdf')
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -564,6 +545,8 @@ def plot_pca_first_coords(datasetsdir, outdir):
         fig, ax = plt.subplots(figsize=(s, .8*s))
         palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
         ax.scatter(transformed[:, 0], transformed[:, 1], c=palettehex[1])
+        ax.set_xlabel('PC0')
+        ax.set_ylabel('PC1')
         ax.set_title('{} (PCA)'.format(label))
         plt.tight_layout()
         plt.savefig(pjoin(outdir, '{}_pca.pdf'.format(label)))
@@ -593,6 +576,7 @@ def plot_pca_first_coords(datasetsdir, outdir):
 
 ##########################################################
 def plot_real_datasets(datasetsdir, outdir):
+    info(inspect.stack()[0][3] + '()')
     for f in sorted(os.listdir(datasetsdir)): # cached datasets
         if not f.endswith('.csv'): continue
         info('Plotting {}'.format(f))
@@ -615,8 +599,6 @@ def plot_real_datasets(datasetsdir, outdir):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
-    parser.add_argument('--samplesz', type=int, default=200, help='Sample size')
     parser.add_argument('--pardir', default='/tmp/hieclust/', help='Parent dir')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
@@ -632,36 +614,26 @@ def main():
 
     np.random.seed(args.seed)
 
+    datasetsdir = './data/'
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
     metric = 'euclidean'
-
     linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
     decays = 'uniform,gaussian,power,exponential'.split(',')
-    alpha = '4'
 
+    alpha = '4'
     distribs = [','.join(['1', d]) for d in decays]
     distribs += [','.join(['2', d, alpha]) for d in decays]
     # distribs += [','.join(['2', d, '5']) for d in decays]
     # distribs += [','.join(['2', d, '6']) for d in decays]
-    metric = 'euclidean'
-    pruningparam = 0.1
-    clrelsize = 0.3 # cluster rel. size
-    precthresh = 0.7
-    datasetsdir = './data/'
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    # plot_real_datasets(datasetsdir, realdir)
-    # plot_pca_first_coords(datasetsdir, realdir)
-    data, partsz = utils.generate_data(distribs, args.samplesz, args.ndims)
-    # plot_2coords(data, palettehex, outdir)
-    # generate_dendrograms_all(data, metric, linkagemeths, clrelsize,
-            # pruningparam, palettehex, outdir)
-    # plot_dendrogram_clusters(data, partsz, distribs, 'ward', metric,
-            # clrelsize, pruningparam, palettehex, outdir)
-    plot_dendrogram_clusters(data, partsz, distribs, 'single', metric,
-            clrelsize, pruningparam, palettehex, outdir)
-    return
+    plot_real_datasets(datasetsdir, realdir)
+    plot_pca_first_coords(datasetsdir, realdir)
+    plot_2coords(distribs, palettehex, outdir)
+    generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
+    plot_dendrogram_clusters(distribs, 'ward', metric, palettehex, outdir)
+    plot_dendrogram_clusters(distribs, 'single', metric, palettehex, outdir)
     plot_contours(distribs, outdir)
     plot_contours(distribs, outdir, True)
     plot_article_uniform_distribs_scale(palettehex, outdir)
