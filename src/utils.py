@@ -593,10 +593,11 @@ def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
 
 ##########################################################
 def pca(xin, normalize=False):
-    if normalize:
-        x = preprocessing.normalize(xin, axis=0)
-    else:
-        x = xin - np.mean(xin, axis=0) # just centralize
+    x = xin.copy()
+
+    if normalize: x = preprocessing.normalize(x, axis=0)
+
+    x -= np.mean(x, axis=0) # just centralize
     cov = np.cov(x, rowvar = False)
     evals , evecs = np.linalg.eig(cov)
 

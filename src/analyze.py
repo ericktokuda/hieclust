@@ -349,31 +349,31 @@ def plot_pca(dforig, cols, colstointerpolate, palettehex, label, ax):
 
     x = df[cols].values
     transformed, evecs, evals = utils.pca(x, normalize=True)
-    # print(label, len(cols), transformed.shape)
 
     contribs = []
-
     for i in [0, 1]:
         evec = np.abs(evecs[:, i])
         contrib = evec / np.sum(evec)
-        ids = np.argsort(contrib)[-1:]
+        ids = np.argsort(contrib)[-3:]
         contrib = contrib[ids]
         contribcols = np.array(cols)[ids]
-        contribs.append('{} ({:.03f})'.format(contribcols[0], contrib[0]))
+        contribs.append(' ({} {}%)'.format(
+            contribcols[-1], np.round(contrib[-1]*100, decimals=1),
+            ))
 
-    t = 0
     for i, d in enumerate(np.unique(df.distrib)):
         idx = np.where(df.distrib == d)[0]
-        # print(np.linalg.norm(transformed[idx, :] - t))
         t = transformed[idx, :]
         ax.scatter(t[:, 0], t[:, 1], label=d, c=palettehex[i], alpha=.7, s=4)
 
-    # ax.text(.1, .8, 'PC0:{}\nPC1:{}'.format(contribs[0], contribs[1]),
+    # ax.text(.06, .8, 'PC0: {}\nPC1: {}'.format(contribs[0], contribs[1]),
             # transform=ax.transAxes)
-    ax.set_xlabel('PC0')
-    ax.set_ylabel('PC1')
-    ax.set_title('PCA - {}'.format(label))
-    ax.legend(fancybox=True, framealpha=0.6, markerscale=2)
+    # ax.set_title('PC0:{}\nPC1:{}'.format(contribs[0], contribs[1]), fontsize='medium')
+    ax.set_xlabel('PC0 {}'.format(contribs[0]))
+    ax.set_ylabel('PC1 {}'.format(contribs[1]))
+    # ax.set_ylabel('PC1')
+    # ax.set_title('PCA - {}'.format(label))
+    # ax.legend(fancybox=True, framealpha=0.6, markerscale=2)
     return transformed
 
 ##########################################################
@@ -442,7 +442,6 @@ def plot_fitted_heights(dforig, nheights, coeffcols, palettehex, ax):
 
 ##########################################################
 def analyze_features(featpath, label, palettehex, outdir):
-    info(inspect.stack()[0][3] + '()')
     dforig = pd.read_csv(featpath, sep='|')
     lasth = int(dforig.columns[-1][1:])
     hcols = ['h{:03d}'.format(x) for x in range(lasth+1)]
@@ -498,8 +497,9 @@ def analyze_features(featpath, label, palettehex, outdir):
         outpath = pjoin(outdir, 'feat_{}_{}.pdf'.format(label, l))
         plt.tight_layout(pad=4.0)
         plt.savefig(outpath)
-        labels = attribs + ['heights', 'heightsfit_', 'pca_clfeatures', 'pca_heightsraw',
-                'pca_clfeatures_heightsraw', 'pca_clfeatures_heightsfit']
+        labels = attribs + ['heights', 'heightsfit_', 'pca_clfeatures',
+                'pca_heightsraw', 'pca_clfeatures_heightsraw',
+                'pca_clfeatures_heightsfit']
         labels = [label+'_' + l for l in labels]
         utils.export_individual_axis(ax, fig, labels, outdir, [.8, .5, .3, .3],
                 'feat_', 'pdf')
@@ -510,13 +510,13 @@ def analyze_features_all(pardir, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     featpath = pjoin(pardir, 'features.csv')
     if os.path.exists(featpath):
-        print(0)
         analyze_features(featpath, '', palettehex, outdir)
     files = sorted(os.listdir(pardir))
     for f in files:
         dirpath = pjoin(pardir, f)
         if not os.path.isdir(dirpath): continue
         if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
+        info(f)
         analyze_features(pjoin(dirpath, 'features.csv'), f, palettehex, outdir)
 
 ##########################################################
@@ -573,26 +573,25 @@ def main():
     palettehex2 = palettehex + ['#a66139']
 
     resdf = concat_results(args.pardir)
-    # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
+    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
 
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    plot_parallel_all(resdf, iconsdir, outdir)
-    return
-    count_method_ranking(resdf, linkagemeths, 'single', outdir)
-    for nclusters in ['1', '2']:
-        filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
-        plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
-        plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    # plot_parallel_all(resdf, iconsdir, outdir)
+    # count_method_ranking(resdf, linkagemeths, 'single', outdir)
+    # for nclusters in ['1', '2']:
+        # filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
+        # methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
+        # plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
+        # plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
 
     analyze_features_all(args.pardir, palettehex2, outdir)
 
-    n1, n2 = analyze_single_precision(args.pardir, outdir)
-    info('single n1:{} n2:{}'.format(n1, n2))
-    n1, n2 = analyze_ward_precision(args.pardir, outdir)
-    info('ward n1:{} n2:{}'.format(n1, n2))
+    # n1, n2 = analyze_single_precision(args.pardir, outdir)
+    # info('single n1:{} n2:{}'.format(n1, n2))
+    # n1, n2 = analyze_ward_precision(args.pardir, outdir)
+    # info('ward n1:{} n2:{}'.format(n1, n2))
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 
