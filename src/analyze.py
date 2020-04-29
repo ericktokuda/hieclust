@@ -292,8 +292,9 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
         e = g.es[i]
         c = methscorr[e.source, e.target]
         v = (c - min_) / range_
-        if v > .3:
+        if c > .3:
             g.es[i]['weight'] = (c - min_) / range_
+            g.es[i]['origweight'] = c
             widths.append(10*g.es[i]['weight'])
         else:
             todelete.append(i)
@@ -301,7 +302,7 @@ def plot_graph(methscorr_in, linkagemeths, palettehex, label, outdir):
 
     g.vs['label'] = linkagemeths
     # g.vs['label'] = ['     ' + l for l in linkagemeths]
-    edgelabels = ['{:.2f}'.format(x) for x in g.es['weight']]
+    edgelabels = ['{:.2f}'.format(x) for x in g.es['origweight']]
     # l = igraph.GraphBase.layout_fruchterman_reingold(weights=g.es['weight'])
     palette = utils.hex2rgb(palettehex, alpha=.8)
     l = g.layout('fr', weights=g.es['weight'])
@@ -373,7 +374,7 @@ def plot_pca(dforig, cols, colstointerpolate, palettehex, label, ax):
     ax.set_ylabel('PC1 {}'.format(contribs[1]))
     # ax.set_ylabel('PC1')
     # ax.set_title('PCA - {}'.format(label))
-    # ax.legend(fancybox=True, framealpha=0.6, markerscale=2)
+    ax.legend(fancybox=True, framealpha=0.6, markerscale=2)
     return transformed
 
 ##########################################################
@@ -501,7 +502,7 @@ def analyze_features(featpath, label, palettehex, outdir):
                 'pca_heightsraw', 'pca_clfeatures_heightsraw',
                 'pca_clfeatures_heightsfit']
         labels = [label+'_' + l for l in labels]
-        utils.export_individual_axis(ax, fig, labels, outdir, [.8, .5, .3, .3],
+        utils.export_individual_axis(ax, fig, labels, outdir, [1, .5, .3, .3],
                 'feat_', 'pdf')
         plt.close()
 
@@ -536,19 +537,18 @@ def analyze_ward_precision(pardir, outdir):
     info(inspect.stack()[0][3] + '()')
     files = sorted(os.listdir(pardir))
     n = 0; n2 = 0
-    for f in files:
-        featpath = pjoin(pardir, f, 'features.csv')
-        if not os.path.exists(featpath): continue
-        featdf = pd.read_csv(featpath, sep='|')
 
-        unicols = []
-        for d in np.unique(featdf.distrib):
-            if d.startswith('2,'): unicols.append(d)
+    featpath = pjoin(pardir, '02d', 'features.csv')
+    featdf = pd.read_csv(featpath, sep='|')
 
-        featdf = featdf[featdf.distrib.isin(unicols)]
-        featdf = featdf[featdf.linkagemeth == 'ward']
-        n2 += np.count_nonzero(featdf.clsize2)
-        n += featdf.shape[0]
+    unicols = []
+    for d in np.unique(featdf.distrib):
+        if d.startswith('1,'): unicols.append(d)
+
+    featdf = featdf[featdf.distrib.isin(unicols)]
+    featdf = featdf[featdf.linkagemeth == 'ward']
+    n2 += np.count_nonzero(featdf.clsize2)
+    n += featdf.shape[0]
     n1 = n - n2
     return n1, n2
 ##########################################################
@@ -586,12 +586,12 @@ def main():
         # plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
         # plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
 
-    analyze_features_all(args.pardir, palettehex2, outdir)
+    # analyze_features_all(args.pardir, palettehex2, outdir)
 
     # n1, n2 = analyze_single_precision(args.pardir, outdir)
     # info('single n1:{} n2:{}'.format(n1, n2))
-    # n1, n2 = analyze_ward_precision(args.pardir, outdir)
-    # info('ward n1:{} n2:{}'.format(n1, n2))
+    n1, n2 = analyze_ward_precision(args.pardir, outdir)
+    info('ward n1:{} n2:{}'.format(n1, n2))
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 

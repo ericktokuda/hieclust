@@ -482,17 +482,29 @@ def plot_article_quiver(palettehex, outdir):
     # plt.text(0.32, 0.9, '(0.6, 1.8)',
              # horizontalalignment='center', verticalalignment='center',
              # fontsize='large', transform = ax.transAxes)
+
     plt.text(0.16, 0.47, 'r',
              horizontalalignment='center', verticalalignment='center',
              color=palettehex[0], style='italic',
              fontsize='x-large', transform = ax.transAxes)
+    ax.quiver(.53, 1.01, .1, .0, color=palettehex[0],
+              width=.005, angles='xy', scale_units='xy', scale=1,
+              headwidth=3, headlength=3, headaxislength=2, zorder=3)
+
     plt.text(0.45, 0.08, 'g',
              horizontalalignment='center', verticalalignment='center', style='italic',
              fontsize='x-large', transform = ax.transAxes)
-    plt.text(0.75, 0.3, 'e',
+    ax.quiver(1.55, .23, .1, .0, color='k',
+              width=.005, angles='xy', scale_units='xy', scale=1,
+              headwidth=3, headlength=3, headaxislength=2, zorder=3)
+
+    plt.text(0.75, 0.3, 'L',
              horizontalalignment='center', verticalalignment='center', style='italic',
              color='#666666',
              fontsize='x-large', transform = ax.transAxes)
+    ax.quiver(2.6, .69, .1, .0, color='#666666',
+              width=.005, angles='xy', scale_units='xy', scale=1,
+              headwidth=3, headlength=3, headaxislength=2, zorder=3)
     ax.set_ylabel('Relevance of 2 clusters', fontsize='large')
     ax.set_xlabel('Relevance of 1 cluster', fontsize='large')
     ax.set_xticks([0, 1, 2, 3.0])
@@ -626,18 +638,18 @@ def main():
     # distribs += [','.join(['2', d, '5']) for d in decays]
     # distribs += [','.join(['2', d, '6']) for d in decays]
 
-    realdir = pjoin(outdir, 'realplots/')
-    if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(datasetsdir, realdir)
-    plot_pca_first_coords(datasetsdir, realdir)
-    plot_2coords(distribs, palettehex, outdir)
-    generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, 'ward', metric, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, 'single', metric, palettehex, outdir)
-    plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, outdir)
-    plot_article_gaussian_distribs_scale(palettehex, outdir)
+    # realdir = pjoin(outdir, 'realplots/')
+    # if not os.path.isdir(realdir): os.mkdir(realdir)
+    # plot_real_datasets(datasetsdir, realdir)
+    # plot_pca_first_coords(datasetsdir, realdir)
+    # plot_2coords(distribs, palettehex, outdir)
+    # generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
+    # plot_dendrogram_clusters(distribs, 'ward', metric, palettehex, outdir)
+    # plot_dendrogram_clusters(distribs, 'single', metric, palettehex, outdir)
+    # plot_contours(distribs, outdir)
+    # plot_contours(distribs, outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, outdir)
     plot_article_quiver(palettehex, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
