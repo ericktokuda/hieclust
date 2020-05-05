@@ -140,6 +140,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
                 features[distrib][linkagemeth][r] = \
                         extract_features(ouliersdist, avgheight, len(outliers), clustids, z)
 
+                breakpoint()
                 rel = utils.calculate_relevance(avgheight, ouliersdist)
                 prec = utils.compute_max_precision(clustids, partsz[distrib], z)
                 ngtruth = int(distrib.split(',')[0])
@@ -238,12 +239,15 @@ def main():
 
     np.random.seed(args.seed)
 
-    linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
+    # linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
+    # linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
+    linkagemeths = ['ward']
     decays = 'uniform,gaussian,power,exponential'.split(',')
     alpha = '4'
 
-    distribs = [','.join(['1', d]) for d in decays]
-    distribs += [','.join(['2', d, alpha]) for d in decays]
+    # distribs = [','.join(['1', d]) for d in decays]
+    # distribs += [','.join(['2', d, alpha]) for d in decays]
+    distribs = ['2,exponential,4']
     metric = 'euclidean'
     pruningparam = 0.02
     clrelsize = 0.3 # cluster rel. size

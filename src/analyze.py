@@ -30,7 +30,7 @@ import utils
 ##########################################################
 def concat_results(resdir):
     info(inspect.stack()[0][3] + '()')
-    filenames = ['results.csv', 'resultsall.csv']
+    filenames = ['resultsall.csv', 'results.csv']
 
     for f in filenames:
         dfpath = pjoin(resdir, f)
@@ -114,7 +114,7 @@ def plot_parallel_all(df, iconsdir, outdir):
 
     figscale = 5
     # fig, axs = plt.subplots(len(dims), 1, figsize=(6*figscale, 8*figscale),
-    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, 5*figscale),
+    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, 4*figscale),
                             squeeze=False)
 
     for i, dim in enumerate(dims):
@@ -573,24 +573,24 @@ def main():
     palettehex2 = palettehex + ['#a66139']
 
     resdf = concat_results(args.pardir)
-    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
+    # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
 
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    # plot_parallel_all(resdf, iconsdir, outdir)
-    # count_method_ranking(resdf, linkagemeths, 'single', outdir)
-    # for nclusters in ['1', '2']:
-        # filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        # methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
-        # plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
-        # plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    plot_parallel_all(resdf, iconsdir, outdir)
+    count_method_ranking(resdf, linkagemeths, 'single', outdir)
+    for nclusters in ['1', '2']:
+        filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
+        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
+        plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
+        plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
 
-    # analyze_features_all(args.pardir, palettehex2, outdir)
+    analyze_features_all(args.pardir, palettehex2, outdir)
 
     # n1, n2 = analyze_single_precision(args.pardir, outdir)
     # info('single n1:{} n2:{}'.format(n1, n2))
-    n1, n2 = analyze_ward_precision(args.pardir, outdir)
+    # n1, n2 = analyze_ward_precision(args.pardir, outdir)
     info('ward n1:{} n2:{}'.format(n1, n2))
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))

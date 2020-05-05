@@ -495,7 +495,8 @@ def calculate_relevance(avgheight, maxdist):
     if avgheight > maxdist:
         return avgheight
     else:
-        return (maxdist - avgheight) / maxdist
+        # return (maxdist - avgheight) / maxdist
+        return maxdist - avgheight
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):
