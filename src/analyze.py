@@ -530,6 +530,7 @@ def analyze_single_precision(pardir, outdir):
     featdf = featdf[featdf.linkagemeth == 'single']
     n2  = np.count_nonzero(featdf.clsize2)
     n1 = featdf.shape[0] - n2
+    info('single n1:{} n2:{}'.format(n1, n2))
     return n1, n2
 
 ##########################################################
@@ -550,11 +551,12 @@ def analyze_ward_precision(pardir, outdir):
     n2 += np.count_nonzero(featdf.clsize2)
     n += featdf.shape[0]
     n1 = n - n2
+    info('ward n1:{} n2:{}'.format(n1, n2))
     return n1, n2
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--pardir', default='/tmp/',
+    parser.add_argument('--pardir', default='/tmp/out/',
             help='Path to the folder containing results[all].csv')
     args = parser.parse_args()
 
@@ -589,9 +591,7 @@ def main():
     analyze_features_all(args.pardir, palettehex2, outdir)
 
     # n1, n2 = analyze_single_precision(args.pardir, outdir)
-    # info('single n1:{} n2:{}'.format(n1, n2))
     # n1, n2 = analyze_ward_precision(args.pardir, outdir)
-    info('ward n1:{} n2:{}'.format(n1, n2))
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 

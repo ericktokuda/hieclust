@@ -303,7 +303,8 @@ def get_ancestors(child, linkageret):
     return ancestors
 
 ##########################################################
-def get_outermost_points(linkageret, outliersratio):
+def get_outermost_points(linkageret, outliersratio, hfloor):
+    # TODO: remove intersection of outliers and cluster links
     if outliersratio > 0:
         outliers = []
         tree = scipy.cluster.hierarchy.to_tree(linkageret)
@@ -311,6 +312,8 @@ def get_outermost_points(linkageret, outliersratio):
         m = tree.dist
         noutliers = outliersratio * n
         for i in range(n-1):
+            if tree.dist <= hfloor: break
+
             if tree.left and tree.left.count <= noutliers:
                 if tree.left:
                     leaves = get_leaves(linkageret, tree.left.id)
@@ -343,7 +346,6 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
-    outliers, L = get_outermost_points(linkageret, outliersratio)
 
     counts = linkageret[:, 3]
 
@@ -361,6 +363,12 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
                     break
             if newclust:
                 clustids.append(clid)
+
+    hfloor = np.max(clustids) - n # highest link
+    hfloor = linkageret[hfloor, 2]
+
+    outliers, L = get_outermost_points(linkageret, outliersratio, hfloor)
+    # TODO: get closest number to the requested
 
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
@@ -491,12 +499,11 @@ def hex2rgb(hexcolours, alpha=None):
     return rgbcolours
 
 ##########################################################
-def calculate_relevance(avgheight, maxdist):
-    if avgheight > maxdist:
-        return avgheight
+def calculate_relevance(avgheight, outliersdist, maxdist):
+    if avgheight > outliersdist:
+        return avgheight / maxdist
     else:
-        # return (maxdist - avgheight) / maxdist
-        return maxdist - avgheight
+        return (outliersdist - avgheight) / maxdist
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):

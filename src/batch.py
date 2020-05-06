@@ -133,6 +133,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
                     filename = 'error_{}_{}.npy'.format(distrib, linkagemeth)
                     np.save(pjoin(outdir, filename), data[distrib])
                     raise(e)
+                maxdist = z[-1, 2]
 
                 ret = utils.find_clusters(data[distrib], z, clsize,
                         minnclusters, outliersratio)
@@ -140,8 +141,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
                 features[distrib][linkagemeth][r] = \
                         extract_features(ouliersdist, avgheight, len(outliers), clustids, z)
 
-                breakpoint()
-                rel = utils.calculate_relevance(avgheight, ouliersdist)
+                rel = utils.calculate_relevance(avgheight, ouliersdist, maxdist)
                 prec = utils.compute_max_precision(clustids, partsz[distrib], z)
                 ngtruth = int(distrib.split(',')[0])
                 npred = len(clustids)
@@ -225,7 +225,7 @@ def main():
     parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
     parser.add_argument('--samplesz', type=int, default=50, help='Sample size')
     parser.add_argument('--nrealizations', type=int, default=3, help='Sample size')
-    parser.add_argument('--outdir', default='/tmp/hieclust/', help='Output directory')
+    parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
 
@@ -234,14 +234,14 @@ def main():
 
     t0 = time.time()
 
-    if not os.path.isdir(args.outdir): os.mkdir(args.outdir)
-    else: info('Overwriting contents of folder {}'.format(args.outdir))
+    outdir = pjoin(args.outdir, '{:02}d'.format(args.ndims))
+    if not os.path.isdir(outdir): os.makedirs(outdir)
+    else: info('Overwriting contents of folder {}'.format(outdir))
 
     np.random.seed(args.seed)
 
     # linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
-    # linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
-    linkagemeths = ['ward']
+    linkagemeths = ['single']
     decays = 'uniform,gaussian,power,exponential'.split(',')
     alpha = '4'
 
@@ -257,10 +257,10 @@ def main():
 
     find_clusters_batch(distribs, args.samplesz, args.ndims, metric,
             linkagemeths, clrelsize, precthresh,
-            args.nrealizations, pruningparam, palettehex, args.outdir)
+            args.nrealizations, pruningparam, palettehex, outdir)
 
     info('Elapsed time:{}'.format(time.time()-t0))
-    info('Results are in {}'.format(args.outdir))
+    info('Results are in {}'.format(outdir))
 
 ##########################################################
 if __name__ == "__main__":

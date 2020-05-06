@@ -294,15 +294,11 @@ def generate_dendrograms_all(distribs, metric, linkagemeths, palette, outdir):
 
         for j, l in enumerate(linkagemeths):
             z = linkage(data[k], l, metric)
-            clustids, avgheight, maxdist, outliers = utils.find_clusters(data[k], z,
+            maxdist = z[-1, 2]
+            clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
                     clsize, minnclusters, pruningparam)
-            rel = utils.calculate_relevance(avgheight, maxdist)
+            rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
             plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10, [])
-
-            if len(clustids) == 1:
-                text = 'rel:({:.3f}, 0.0)'.format(rel)
-            else:
-                text = 'rel:(0.0, {:.3f})'.format(rel)
 
     for i, k in enumerate(data):
         ax[i, 0].set_ylabel(k, rotation=90, size=24)
@@ -399,23 +395,25 @@ def plot_dendrogram_clusters(distribs, linkagemeth, metric, palettehex,
     fig, ax = plt.subplots(nrows, ncols,
             figsize=(ncols*figscale, nrows*figscale), squeeze=False)
 
+    texts = []
     for i, k in enumerate(distribs):
         nclusters = int(k.split(',')[0])
 
         z = linkage(data[k], linkagemeth, metric)
-        clustids, avgheight, maxdist, outliers = utils.find_clusters(data[k], z, clsize,
-                minnclusters, pruningparam)
+        maxdist = z[-1, 2]
+        clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
+                clsize, minnclusters, pruningparam)
 
-        rel = utils.calculate_relevance(avgheight, maxdist)
+        rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
         prec = utils.compute_max_precision(clustids, partsz[k], z)
         colours = plot_dendrogram(z, linkagemeth, ax[i, 2], avgheight,
-                maxdist, clustids, palettehex, outliers)
+                outliersdist, clustids, palettehex, outliers)
         clsizes = []
         for clid in clustids: clsizes.append(len(utils.get_leaves(z, clid)))
-        # ax[i, 1].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
-                # format(clsizes, rel, prec),
-                 # horizontalalignment='center', verticalalignment='center',
-                 # fontsize=15, transform = ax[i, 1].transAxes)
+        texts.append(ax[i, 2].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
+                format(clsizes, rel, prec),
+                horizontalalignment='center', verticalalignment='center',
+                fontsize=15, transform = ax[i, 2].transAxes))
 
         ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
         ax[i, 0].set_title('Spatial coordinates (first cords)')
@@ -436,9 +434,8 @@ def plot_dendrogram_clusters(distribs, linkagemeth, metric, palettehex,
     plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
 
     for i in range(nrows):
+        texts[i].set_visible(False)
         for j in range(2):
-            # ax[i, j].set_xticklabels([])
-            # ax[i, j].set_yticklabels([])
             ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
             ax[i, j].set_ylabel('')
 
@@ -607,7 +604,7 @@ def plot_real_datasets(datasetsdir, outdir):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--pardir', default='/tmp/hieclust/', help='Parent dir')
+    parser.add_argument('--pardir', default='/tmp/out/', help='Parent dir')
     parser.add_argument('--seed', default=0, type=int)
     args = parser.parse_args()
 
@@ -639,11 +636,12 @@ def main():
     # plot_real_datasets(datasetsdir, realdir)
     # plot_pca_first_coords(datasetsdir, realdir)
     # plot_2coords(distribs, palettehex, outdir)
-    generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, 'ward', metric, palettehex,
-            2, outdir)
+    # generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
+    # plot_dendrogram_clusters(distribs, 'ward', metric, palettehex,
+            # 2, outdir)
     plot_dendrogram_clusters(distribs, 'single', metric, palettehex,
             2, outdir)
+    return
     plot_contours(distribs, outdir)
     plot_contours(distribs, outdir, True)
     plot_article_uniform_distribs_scale(palettehex, outdir)
