@@ -352,6 +352,7 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     clustids = []
     for clustcount in range(clsize, n): # Find clustesr with increasing size
         if len(clustids) >= minnclusters: break
+        # Get the links with the exact size requested
         joininds = np.where(linkageret[:, 3] == clustcount)[0]
 
         for joinidx in joininds:
@@ -366,7 +367,14 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
             if newclust:
                 clustids.append(clid)
 
-    # TODO: get closest number to the requested
+    for i in range(len(clustids)): # Get the closest size w.r.t. the requested
+        clid = clustids[i]
+        diff_orig = np.abs(len(get_leaves(linkageret, clid)) - clsize)
+        for j in range(2):
+            aux = len(get_leaves(linkageret, linkageret[clid-n, j]))
+            if np.abs(aux - clsize) < diff_orig:
+                clustids[i] = int(linkageret[clid-n, j])
+                break
 
     hfloor = np.max(clustids) - n # highest link
     hfloor = linkageret[hfloor, 2]
