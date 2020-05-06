@@ -636,12 +636,11 @@ def main():
     # plot_real_datasets(datasetsdir, realdir)
     # plot_pca_first_coords(datasetsdir, realdir)
     # plot_2coords(distribs, palettehex, outdir)
-    # generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
-    # plot_dendrogram_clusters(distribs, 'ward', metric, palettehex,
-            # 2, outdir)
+    generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
+    plot_dendrogram_clusters(distribs, 'ward', metric, palettehex,
+            2, outdir)
     plot_dendrogram_clusters(distribs, 'single', metric, palettehex,
             2, outdir)
-    return
     plot_contours(distribs, outdir)
     plot_contours(distribs, outdir, True)
     plot_article_uniform_distribs_scale(palettehex, outdir)

@@ -240,14 +240,14 @@ def main():
 
     np.random.seed(args.seed)
 
-    # linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
-    linkagemeths = ['single']
+    linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
+    # linkagemeths = ['single']
     decays = 'uniform,gaussian,power,exponential'.split(',')
     alpha = '4'
 
-    # distribs = [','.join(['1', d]) for d in decays]
-    # distribs += [','.join(['2', d, alpha]) for d in decays]
-    distribs = ['2,exponential,4']
+    distribs = [','.join(['1', d]) for d in decays]
+    distribs += [','.join(['2', d, alpha]) for d in decays]
+    # distribs = ['2,exponential,4']
     metric = 'euclidean'
     pruningparam = 0.02
     clrelsize = 0.3 # cluster rel. size
