@@ -511,10 +511,11 @@ def hex2rgb(hexcolours, alpha=None):
 
 ##########################################################
 def calculate_relevance(avgheight, outliersdist, maxdist):
-    if avgheight > outliersdist:
-        return avgheight / maxdist
-    else:
-        return (outliersdist - avgheight) / maxdist
+    return avgheight / maxdist
+    # if avgheight > outliersdist:
+        # return avgheight / maxdist
+    # else:
+        # return (outliersdist - avgheight) / maxdist
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):
