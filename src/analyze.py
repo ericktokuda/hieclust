@@ -575,7 +575,7 @@ def main():
     palettehex2 = palettehex + ['#a66139']
 
     resdf = concat_results(args.pardir)
-    # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
+    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
 
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
