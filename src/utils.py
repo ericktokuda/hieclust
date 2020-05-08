@@ -511,11 +511,7 @@ def hex2rgb(hexcolours, alpha=None):
 
 ##########################################################
 def calculate_relevance(avgheight, outliersdist, maxdist):
-    return avgheight / maxdist
-    # if avgheight > outliersdist:
-        # return avgheight / maxdist
-    # else:
-        # return (outliersdist - avgheight) / maxdist
+    return 1 - (avgheight / maxdist)
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):
@@ -554,62 +550,18 @@ def accumulate_relevances(rels, distribs, linkagemeths):
                 accrel[distrib][linkagemeth][j] = np.sum(rel)
     return accrel
 
-
 ##########################################################
-def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
-    info(inspect.stack()[0][3] + '()')
-    distribs = list(rels.keys())
-    linkagemeths = list(rels[distribs[0]].keys())
-    nrealizations = np.sum([len(g) for g in rels[distribs[0]][linkagemeths[0]]])
+def average_relevances(rels, distribs, linkagemeths):
+    avgrel = {k: {} for k in distribs} # accumulated relevances
 
-    nrows = len(distribs); ncols = 1
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4), squeeze=False)
-    palette = hex2rgb(palettehex, alpha=.8)
-
-    origin = np.zeros(2)
+    aux = rels[distribs[0]][linkagemeths[0]]
+    n = np.sum([ len(k) for k in aux])
     for i, distrib in enumerate(distribs):
-        xs = np.array([gtruths[distrib][0]])
-        ys = np.array([gtruths[distrib][1]])
-
-        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
-                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
-                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
-
-        for j, linkagemeth in enumerate(linkagemeths):
-            xs = np.array([accrel[distrib][linkagemeth][0]])
-            ys = np.array([accrel[distrib][linkagemeth][1]])
-
-            coords = np.array([accrel[distrib][linkagemeth][0],
-                              accrel[distrib][linkagemeth][1]])
-            ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j], width=.01,
-                            angles='xy', scale_units='xy', scale=1,
-                            label=linkagemeth,
-                            headwidth=5, headlength=4, headaxislength=3.5,
-                            zorder=1/np.linalg.norm(coords)+3)
-
-            ax[i, 0].set_xlim(0, nrealizations)
-            ax[i, 0].set_ylim(0, nrealizations)
-            # ax[i, 0].set_axisbelow(True)
-            # ax[i, 0].text(0.5, 0.9, 'prec:{}'.format(
-                # np.sum(methprec[distrib][linkagemeth])),
-                     # horizontalalignment='center', verticalalignment='center',
-                     # fontsize='large')
-
-        # plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
-                 # horizontalalignment='center', verticalalignment='center',
-                 # fontsize='large', transform = ax[i, 1].transAxes)
-
-        ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
-        ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
-        ax[i, 0].legend()
-
-    plt.tight_layout(pad=4)
-    export_individual_axis(ax, fig, distribs, outdir, 0.36, 'relev_vector_')
-
-    for i, distrib in enumerate(distribs): # Plot
-        ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
-
-    plt.savefig(pjoin(outdir, 'relev_vectors_all.pdf'))
+        for linkagemeth in linkagemeths:
+            avgrel[distrib][linkagemeth] = np.zeros(2)
+            for j, rel in enumerate(rels[distrib][linkagemeth]):
+                avgrel[distrib][linkagemeth][j] = np.sum(rel) / n
+    return avgrel
 
 ##########################################################
 def pca(xin, normalize=False):

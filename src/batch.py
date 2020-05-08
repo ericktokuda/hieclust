@@ -71,7 +71,7 @@ def compute_gtruth_vectors(distribs, nrealizations):
     for i, k in enumerate(distribs):
         nclusters = int(k.split(',')[0])
         gtruths[k] = np.zeros(2)
-        gtruths[k][nclusters-1] = nrealizations
+        gtruths[k][nclusters-1] = 1.0
 
     return gtruths
 
@@ -152,16 +152,16 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
 
                 rels[distrib][linkagemeth][npred-1].append(rel)
 
-    accrel = utils.accumulate_relevances(rels, distribs, linkagemeths)
+    avgrel = utils.average_relevances(rels, distribs, linkagemeths)
     filename = pjoin(outdir, 'nimprec.csv')
     pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
 
     gtruths = compute_gtruth_vectors(distribs, nrealizations)
     diffnorms, winners = compute_rel_to_gtruth_difference(
-            accrel, gtruths, distribs, linkagemeths, nrealizations)
+            avgrel, gtruths, distribs, linkagemeths, nrealizations)
 
     export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir)
-    plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir)
+    plot_vectors(rels, avgrel, methprec, gtruths, palettehex, outdir)
 
 ##########################################################
 def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
@@ -195,17 +195,8 @@ def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
                             headwidth=5, headlength=4, headaxislength=3.5,
                             zorder=1/np.linalg.norm(coords)+3)
 
-            ax[i, 0].set_xlim(0, nrealizations)
-            ax[i, 0].set_ylim(0, nrealizations)
-            # ax[i, 0].set_axisbelow(True)
-            # ax[i, 0].text(0.5, 0.9, 'prec:{}'.format(
-                # np.sum(methprec[distrib][linkagemeth])),
-                     # horizontalalignment='center', verticalalignment='center',
-                     # fontsize='large')
-
-        # plt.text(0.5, 0.9, 'winner:{}'.format(winner[distrib]),
-                 # horizontalalignment='center', verticalalignment='center',
-                 # fontsize='large', transform = ax[i, 1].transAxes)
+            ax[i, 0].set_xlim(0, 1.1)
+            ax[i, 0].set_ylim(0, 1.1)
 
         ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
         ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
