@@ -66,17 +66,19 @@ def plot_parallel(df, colours, ax, fig):
     ax.set_ylim(-0.1, 1.25)
     ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
-    ax.set_xlim(-.5, 7.5)
+    ax.set_xlim(-.5, 7.8)
     ax.set_ylabel('Avg. difference', fontsize=25)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
 
     ax.legend(
-        fontsize=25,
-        loc=[.82, .28],
-        # loc=[.88, .18],
+            fancybox=True,
+            framealpha=0.7,
+            fontsize=25,
+            loc=[.84, .18],
     )
+    # ax.legend(fancybox=True, framealpha=0.5)
 
     ax.tick_params(bottom="off")
     ax.tick_params(axis='x', length=0)
@@ -92,17 +94,16 @@ def plot_parallel(df, colours, ax, fig):
     fig.lines.append(line)
 
 ##########################################################
-def include_icons(iconpaths, fig):
+def include_icons(iconpaths, ndims, fig):
+    dy = 1 / (ndims*ndims)
     for i, iconpath in enumerate(iconpaths):
-        # sign = 0.015*(-1) ** i
-        sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.175+i*.104, 0.8+sign, 0.06, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.18+i*.101, 0.739 + dy, 0.06, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
 ##########################################################
-def plot_parallel_all(df, iconsdir, palettehex, outdir):
+def plot_parallel_all(df, iconsdir, label, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     if not os.path.isdir(iconsdir):
         m = 'Icons path {} does not exist,'.format(iconsdir)
@@ -114,8 +115,8 @@ def plot_parallel_all(df, iconsdir, palettehex, outdir):
     colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
     dims = np.unique(df.dim)
 
-    figscale = 5
-    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, len(dims)*figscale),
+    figscale = 4.5
+    fig, axs = plt.subplots(len(dims), 1, figsize=(5*figscale, len(dims)*figscale),
                             squeeze=False)
 
     for i, dim in enumerate(dims):
@@ -124,20 +125,19 @@ def plot_parallel_all(df, iconsdir, palettehex, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.08, 0, 1, .94), h_pad=1)
+    plt.tight_layout(rect=(0.1, 0, 1, .92), h_pad=1)
     for i, dim in enumerate(dims):
         # plt.text(-0.1, .5, '{}-D'.format(dim),
         plt.text(-0.15, .5, '{}-D'.format(dim),
                  horizontalalignment='center', verticalalignment='center',
-                 fontsize='30',
-                 transform = axs[i, 0].transAxes
+                 fontsize='30', transform = axs[i, 0].transAxes
                  )
 
     iconpaths = [ pjoin(iconsdir, 'icon_' + f + '.png') for f in df[df.dim==2].distrib ]
 
-    include_icons(iconpaths, fig)
+    include_icons(iconpaths, len(dims), fig)
 
-    plt.savefig(pjoin(outdir, 'parallel_all.pdf'))
+    plt.savefig(pjoin(outdir, 'parallel_all{}.pdf'.format(label)))
 
 ##########################################################
 def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
@@ -648,12 +648,13 @@ def main():
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
 
     resdf = concat_results(args.pardir)
-    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
 
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    plot_parallel_all(resdf, iconsdir, palettehex, outdir)
+    plot_parallel_all(resdf, iconsdir, '_dims', palettehex, outdir)
+    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
+    plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
 
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
     for nclusters in ['1', '2']:
