@@ -564,6 +564,24 @@ def average_relevances(rels, distribs, linkagemeths):
     return avgrel
 
 ##########################################################
+def compute_gtruth_vectors(distribs, nrealizations):
+    """Compute the ground-truth given by Luc method
+
+    Args:
+    data(dict): dict with key 'numclust,method,param' and list as values
+
+    Returns:
+    dict: key 'numclust,method,param' and list as values
+    """
+    gtruths = {}
+    for i, k in enumerate(distribs):
+        nclusters = int(k.split(',')[0])
+        gtruths[k] = np.zeros(2)
+        gtruths[k][nclusters-1] = 1.0
+
+    return gtruths
+
+##########################################################
 def pca(xin, normalize=False):
     x = xin.copy()
 

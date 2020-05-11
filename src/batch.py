@@ -24,13 +24,13 @@ import pandas as pd
 import utils
 
 ##########################################################
-def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
+def extract_features(maxdist, ouliersdist, avgheight, noutliers, clustids, z):
     clsizes = [0] * 2
     for i in [0, 1]:
         if len(clustids) > i:
             clsizes[i] = len(utils.get_leaves(z, clustids[i]))
             
-    features = np.array([ouliersdist, avgheight, noutliers] + clsizes)
+    features = np.array([maxdist, ouliersdist, avgheight, noutliers] + clsizes)
     features = np.concatenate((features, z[:, 2]))
     return features
 
@@ -58,24 +58,6 @@ def compute_rel_to_gtruth_difference(accrel, gtruths, distribs, linkagemeths,
     return diffnorms, winners
 
 ##########################################################
-def compute_gtruth_vectors(distribs, nrealizations):
-    """Compute the ground-truth given by Luc method
-
-    Args:
-    data(dict): dict with key 'numclust,method,param' and list as values
-
-    Returns:
-    dict: key 'numclust,method,param' and list as values
-    """
-    gtruths = {}
-    for i, k in enumerate(distribs):
-        nclusters = int(k.split(',')[0])
-        gtruths[k] = np.zeros(2)
-        gtruths[k][nclusters-1] = 1.0
-
-    return gtruths
-
-##########################################################
 def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir):
     df = pd.DataFrame.from_dict(diffnorms, orient='index')
     df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
@@ -83,12 +65,10 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
 
     nrealizations, featsize = features[distribs[0]][linkagemeths[0]].shape
     df = pd.DataFrame.from_dict(features, orient='index')
-    # print(nrealizations, featsize)
-    # input()
 
     fh = open(pjoin(outdir, 'features.csv'), 'w')
-    header = 'distrib|linkagemeth|realiz|outliersdist|avgheight|noutliers|clsize1|clsize2|'
-    header += '|'.join(['h{:03d}'.format(x) for x in range(featsize - 5)])
+    header = 'distrib|linkagemeth|realiz|maxdist|outliersdist|avgheight|noutliers|clsize1|clsize2|'
+    header += '|'.join(['h{:03d}'.format(x) for x in range(featsize - 6)])
     print(header, file=fh)
     for l in linkagemeths:
         for d in distribs:
@@ -109,7 +89,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
     info('Nrealizations:{}, Samplesize:{}, requestedsz:{}'.\
          format(nrealizations, samplesz, clsize))
 
-    featsize = 5 + (samplesz - 1) # 5 features plus the 2nd column of Z
+    featsize = 6 + (samplesz - 1) # 5 features plus the 2nd column of Z
 
     rels = {}; methprec = {}; nimprec = {}; features = {}
     for distrib in distribs:
@@ -139,7 +119,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
                         minnclusters, outliersratio)
                 clustids, avgheight, ouliersdist, outliers = ret
                 features[distrib][linkagemeth][r] = \
-                        extract_features(ouliersdist, avgheight, len(outliers), clustids, z)
+                        extract_features(maxdist, ouliersdist, avgheight, len(outliers), clustids, z)
 
                 rel = utils.calculate_relevance(avgheight, ouliersdist, maxdist)
                 prec = utils.compute_max_precision(clustids, partsz[distrib], z)
@@ -156,59 +136,11 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
     filename = pjoin(outdir, 'nimprec.csv')
     pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
 
-    gtruths = compute_gtruth_vectors(distribs, nrealizations)
+    gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
     diffnorms, winners = compute_rel_to_gtruth_difference(
             avgrel, gtruths, distribs, linkagemeths, nrealizations)
 
     export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir)
-    plot_vectors(rels, avgrel, methprec, gtruths, palettehex, outdir)
-
-##########################################################
-def plot_vectors(rels, accrel, methprec, gtruths, palettehex, outdir):
-    info(inspect.stack()[0][3] + '()')
-    distribs = list(rels.keys())
-    linkagemeths = list(rels[distribs[0]].keys())
-    nrealizations = np.sum([len(g) for g in rels[distribs[0]][linkagemeths[0]]])
-
-    nrows = len(distribs); ncols = 1
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4), squeeze=False)
-    palette = utils.hex2rgb(palettehex, alpha=.8)
-
-    origin = np.zeros(2)
-    for i, distrib in enumerate(distribs):
-        xs = np.array([gtruths[distrib][0]])
-        ys = np.array([gtruths[distrib][1]])
-
-        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
-                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
-                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
-
-        for j, linkagemeth in enumerate(linkagemeths):
-            xs = np.array([accrel[distrib][linkagemeth][0]])
-            ys = np.array([accrel[distrib][linkagemeth][1]])
-
-            coords = np.array([accrel[distrib][linkagemeth][0],
-                              accrel[distrib][linkagemeth][1]])
-            ax[i, 0].quiver(origin, origin, xs, ys, color=palette[j], width=.01,
-                            angles='xy', scale_units='xy', scale=1,
-                            label=linkagemeth,
-                            headwidth=5, headlength=4, headaxislength=3.5,
-                            zorder=1/np.linalg.norm(coords)+3)
-
-            ax[i, 0].set_xlim(0, 1.1)
-            ax[i, 0].set_ylim(0, 1.1)
-
-        ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
-        ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
-        ax[i, 0].legend()
-
-    plt.tight_layout(pad=4)
-    utils.export_individual_axis(ax, fig, distribs, outdir, 0.36, 'relev_vector_')
-
-    for i, distrib in enumerate(distribs): # Plot
-        ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
-
-    plt.savefig(pjoin(outdir, 'relev_vectors_all.pdf'))
 
 ##########################################################
 def main():
