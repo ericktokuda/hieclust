@@ -110,8 +110,8 @@ def plot_parallel_all(df, iconsdir, palettehex, outdir):
         raise Exception(m)
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
-    colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
-    # colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
+    # colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
+    colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
     dims = np.unique(df.dim)
 
     figscale = 5
@@ -614,13 +614,13 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
             ax[i, 0].set_xlim(0, 1.1)
             ax[i, 0].set_ylim(0, 1.1)
 
-        ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
-        ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
+        ax[i, 0].set_ylabel('Avg. relevance of 2 clusters predictions', fontsize='medium')
+        ax[i, 0].set_xlabel('Avg. relevance of 1 cluster predictions', fontsize='medium')
         ax[i, 0].legend()
 
     lab = 'relev_{}_'.format(label)
     plt.tight_layout(pad=4)
-    utils.export_individual_axis(ax, fig, distribs, outdir, 0.36, lab)
+    utils.export_individual_axis(ax, fig, distribs, outdir, [.7, .5, .1, .1], lab)
 
     for i, distrib in enumerate(distribs): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
