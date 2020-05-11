@@ -496,16 +496,18 @@ def plot_contours(labels, outdir, icons=False):
         export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
-def hex2rgb(hexcolours, alpha=None):
+def hex2rgb(hexcolours, normalized=False, alpha=None):
     rgbcolours = np.zeros((len(hexcolours), 3), dtype=int)
     for i, h in enumerate(hexcolours):
         rgbcolours[i, :] = np.array([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)])
 
     if alpha != None:
         aux = np.zeros((len(hexcolours), 4), dtype=float)
-        aux[:, :3] = rgbcolours / 255.0
+        aux[:, :3] = rgbcolours / 255
         aux[:, -1] = .7 # alpha
         rgbcolours = aux
+    elif normalized:
+        rgbcolours = rgbcolours.astype(float) / 255
 
     return rgbcolours
 

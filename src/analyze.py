@@ -62,11 +62,12 @@ def plot_parallel(df, colours, ax, fig):
     )
     ax.yaxis.grid(False)
     ax.xaxis.set_ticks_position('top')
-    # ax.set_yticks([0, 100, 200, 300, 400, 500])
+    ax.set_yticks([0, .25, .5, .75, 1])
+    ax.set_ylim(-0.1, 1.25)
     ax.tick_params(axis='y', which='major', labelsize=25)
     ax.set_xticklabels([])
     ax.set_xlim(-.5, 7.5)
-    ax.set_ylabel('Accum. difference', fontsize=25)
+    ax.set_ylabel('Avg. difference', fontsize=25)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -96,25 +97,25 @@ def include_icons(iconpaths, fig):
         # sign = 0.015*(-1) ** i
         sign = 0.0
         im = imageio.imread(iconpath)
-        newax = fig.add_axes([0.185+i*.103, 0.79+sign, 0.06, 0.2], anchor='NE', zorder=-1)
+        newax = fig.add_axes([0.175+i*.104, 0.8+sign, 0.06, 0.2], anchor='NE', zorder=-1)
         newax.imshow(im, aspect='equal')
         newax.axis('off')
 
 ##########################################################
-def plot_parallel_all(df, iconsdir, outdir):
+def plot_parallel_all(df, iconsdir, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
     if not os.path.isdir(iconsdir):
-        info('Icons path {} does not exist,'.format(iconsdir));
-        info('run src/createfigures.py first!');
-        return
+        m = 'Icons path {} does not exist,'.format(iconsdir)
+        m += 'run src/createfigures.py first!'
+        raise Exception(m)
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
     colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
+    # colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
     dims = np.unique(df.dim)
 
     figscale = 5
-    # fig, axs = plt.subplots(len(dims), 1, figsize=(6*figscale, 8*figscale),
-    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, 4*figscale),
+    fig, axs = plt.subplots(len(dims), 1, figsize=(4*figscale, len(dims)*figscale),
                             squeeze=False)
 
     for i, dim in enumerate(dims):
@@ -123,7 +124,7 @@ def plot_parallel_all(df, iconsdir, outdir):
         plot_parallel(slice, colours, axs[i, 0], fig)
 
     # plt.tight_layout(rect=(0.1, 0, 1, 1))
-    plt.tight_layout(rect=(0.08, 0, 1, .94), h_pad=.3)
+    plt.tight_layout(rect=(0.08, 0, 1, .94), h_pad=1)
     for i, dim in enumerate(dims):
         # plt.text(-0.1, .5, '{}-D'.format(dim),
         plt.text(-0.15, .5, '{}-D'.format(dim),
@@ -553,6 +554,79 @@ def analyze_ward_precision(pardir, outdir):
     n1 = n - n2
     info('ward n1:{} n2:{}'.format(n1, n2))
     return n1, n2
+
+##########################################################
+def plot_vectors_all(pardir, distribs, linkagemeths, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
+    featpath = pjoin(pardir, 'features.csv')
+    if os.path.exists(featpath):
+        plot_vectors(featpath, distribs, linkagemeths, '', palettehex, outdir)
+
+    files = sorted(os.listdir(pardir))
+    for f in files:
+        dirpath = pjoin(pardir, f)
+        if not os.path.isdir(dirpath): continue
+        if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
+        info(f)
+        featdf = pd.read_csv(pjoin(dirpath, 'features.csv'), sep='|')
+        plot_vectors(featdf, distribs, linkagemeths, f, palettehex, outdir)
+
+##########################################################
+def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
+    df = dforig.copy()
+    df = df['distrib,linkagemeth,realiz,avgheight,maxdist,clsize1,clsize2'.split(',')]
+    df['relev'] = (df.maxdist - df.avgheight) / df.maxdist
+
+    nrealizations = len(df[(df.distrib == distribs[0]) & \
+            (df.linkagemeth == linkagemeths[0])])
+
+    nrows = len(distribs); ncols = 1
+    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4), squeeze=False)
+    palette = utils.hex2rgb(palettehex, alpha=.8)
+    gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
+
+    origin = np.zeros(2)
+    for i, distrib in enumerate(distribs):
+        xs = np.array([gtruths[distrib][0]])
+        ys = np.array([gtruths[distrib][1]])
+
+        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
+                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
+                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+
+        for j, linkagemeth in enumerate(linkagemeths):
+            curdf = df[(df.distrib == distrib) & (df.linkagemeth == linkagemeth)]
+
+            inds = np.where(curdf.clsize2 == 0)
+            rel1avg = np.mean(curdf.iloc[inds].relev) if len(inds[0]) > 0 else 0
+
+            inds = np.where(curdf.clsize2 != 0)
+            rel2avg = np.mean(curdf.iloc[inds].relev) if len(inds[0]) > 0 else 0
+
+            ax[i, 0].quiver(origin, origin, [rel1avg], [rel2avg],
+                    color=palette[j], width=.01,
+                    angles='xy', scale_units='xy', scale=1,
+                    label=linkagemeth,
+                    headwidth=5, headlength=4, headaxislength=3.5,
+                    zorder=1/np.linalg.norm(np.array([rel1avg, rel2avg]))+3)
+
+            ax[i, 0].set_xlim(0, 1.1)
+            ax[i, 0].set_ylim(0, 1.1)
+
+        ax[i, 0].set_ylabel('Sum of relevances of 2 clusters', fontsize='medium')
+        ax[i, 0].set_xlabel('Sum of relevances of 1 cluster', fontsize='medium')
+        ax[i, 0].legend()
+
+    lab = 'relev_{}_'.format(label)
+    plt.tight_layout(pad=4)
+    utils.export_individual_axis(ax, fig, distribs, outdir, 0.36, lab)
+
+    for i, distrib in enumerate(distribs): # Plot
+        ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
+
+    plt.savefig(pjoin(outdir, '{}all.pdf'.format(lab)))
+
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -571,8 +645,7 @@ def main():
 
     np.random.seed(0)
 
-    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    palettehex2 = palettehex + ['#a66139']
+    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
 
     resdf = concat_results(args.pardir)
     resdf = filters_by_dim(resdf, [2, 4, 5, 10])
@@ -580,18 +653,20 @@ def main():
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    plot_parallel_all(resdf, iconsdir, outdir)
+    plot_parallel_all(resdf, iconsdir, palettehex, outdir)
+
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
     for nclusters in ['1', '2']:
         filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex2, outdir)
+        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, outdir)
         plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
         plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
 
-    analyze_features_all(args.pardir, palettehex2, outdir)
+    plot_vectors_all(args.pardir, distribs, linkagemeths, palettehex, outdir)
+    analyze_features_all(args.pardir, palettehex, outdir)
 
-    # n1, n2 = analyze_single_precision(args.pardir, outdir)
-    # n1, n2 = analyze_ward_precision(args.pardir, outdir)
+    n1, n2 = analyze_single_precision(args.pardir, outdir)
+    n1, n2 = analyze_ward_precision(args.pardir, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 
