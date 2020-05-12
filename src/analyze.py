@@ -173,7 +173,7 @@ def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     fh.close()
 
 ##########################################################
-def scatter_pairwise(df, linkagemeths, palettehex, outdir):
+def scatter_pairwise(df, methscorr, linkagemeths, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
 
     nmeths = len(linkagemeths)
@@ -191,9 +191,8 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
         modal[int(d[0])].append(d)
 
     colours = {c: palettehex[i] for i,c in enumerate(dims)}
-    markers = {1:'$1$', 2: '$2$'}
+    markers = {1:'$u$', 2: '$b$'}
 
-    corr =  np.ones((nmeths, nmeths), dtype=float)
     k = 0
     for i in range(nmeths-1):
         m1 = linkagemeths[i]
@@ -204,14 +203,11 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
             for idx, row in df.iterrows():
                 dim = row.dim
                 nclusters = int(str(row.distrib)[0])
-                ax.scatter(row[m1], row[m2], label=str(dim),
-                           c=colours[dim], marker=markers[nclusters])
+                ax.scatter(row[m1], row[m2], label=str(dim), c=colours[dim],
+                        marker=markers[nclusters])
 
-            p = pearsonr(df[m1], df[m2])[0]
-            corr[i, j] = p
-            corr[j, i] = p
-
-            ax.set_title('Pearson corr: {:.3f}'.format(p))
+                ax.set_title('Pearson uni: {:.3f}, bi: {:.3f}'. \
+                        format(methscorr['1'][i][j], methscorr['2'][i][j],))
 
             from matplotlib.patches import Patch
             legend_elements = [   Patch(
@@ -232,7 +228,6 @@ def scatter_pairwise(df, linkagemeths, palettehex, outdir):
 
     plt.tight_layout(pad=1, h_pad=3)
     plt.savefig(pjoin(outdir, 'meths_pairwise.pdf'))
-    return corr
 
 ##########################################################
 def plot_meths_heatmap(methscorr, linkagemeths, label, outdir):
@@ -522,7 +517,7 @@ def analyze_features_all(pardir, palettehex, outdir):
         analyze_features(pjoin(dirpath, 'features.csv'), f, palettehex, outdir)
 
 ##########################################################
-def analyze_single_precision(pardir, outdir):
+def print_single_precision(pardir, outdir):
     info(inspect.stack()[0][3] + '()')
     featpath = pjoin(pardir, '02d', 'features.csv')
     featdf = pd.read_csv(featpath, sep='|')
@@ -535,7 +530,7 @@ def analyze_single_precision(pardir, outdir):
     return n1, n2
 
 ##########################################################
-def analyze_ward_precision(pardir, outdir):
+def print_ward_precision(pardir, outdir):
     info(inspect.stack()[0][3] + '()')
     files = sorted(os.listdir(pardir))
     n = 0; n2 = 0
@@ -554,6 +549,20 @@ def analyze_ward_precision(pardir, outdir):
     n1 = n - n2
     info('ward n1:{} n2:{}'.format(n1, n2))
     return n1, n2
+
+##########################################################
+def compute_correlation(dforig, nclu, linkagemeths, palettehex2, outdir):
+    df = dforig[dforig['distrib'].str.startswith(nclu)]
+    nmeths = len(linkagemeths)
+    corr =  np.ones((nmeths, nmeths), dtype=float)
+    for i in range(nmeths-1):
+        m1 = linkagemeths[i]
+        for j in range(i+1, nmeths):
+            m2 = linkagemeths[j]
+            p = pearsonr(df[m1], df[m2])[0]
+            corr[i, j] = p
+            corr[j, i] = p
+    return corr
 
 ##########################################################
 def plot_vectors_all(pardir, distribs, linkagemeths, palettehex, outdir):
@@ -657,17 +666,21 @@ def main():
     plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
 
     count_method_ranking(resdf, linkagemeths, 'single', outdir)
-    for nclusters in ['1', '2']:
-        filtered = resdf[resdf['distrib'].str.startswith(nclusters)]
-        methscorr = scatter_pairwise(filtered, linkagemeths, palettehex, outdir)
-        plot_meths_heatmap(methscorr, linkagemeths, nclusters, outdir)
-        plot_graph(methscorr, linkagemeths, palettehex, nclusters, outdir)
+    methscorr = {}
+    for nclu in ['1', '2']:
+        methscorr[nclu] = compute_correlation(resdf, nclu, linkagemeths,
+                palettehex, outdir)
+        plot_meths_heatmap(methscorr[nclu], linkagemeths, nclu, outdir)
+        plot_graph(methscorr[nclu], linkagemeths, palettehex, nclu, outdir)
+
+    scatter_pairwise(resdf, methscorr, linkagemeths, palettehex, outdir)
+
+    analyze_features_all(args.pardir, palettehex, outdir)
 
     plot_vectors_all(args.pardir, distribs, linkagemeths, palettehex, outdir)
     analyze_features_all(args.pardir, palettehex, outdir)
-
-    n1, n2 = analyze_single_precision(args.pardir, outdir)
-    n1, n2 = analyze_ward_precision(args.pardir, outdir)
+    print_single_precision(args.pardir, outdir)
+    print_ward_precision(args.pardir, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 
