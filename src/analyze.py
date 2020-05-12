@@ -597,8 +597,8 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
 
     origin = np.zeros(2)
     for i, distrib in enumerate(distribs):
-        xs = np.array([gtruths[distrib][0]])
-        ys = np.array([gtruths[distrib][1]])
+        xs = np.array([gtruths[distrib][0]*nrealizations])
+        ys = np.array([gtruths[distrib][1]*nrealizations])
 
         ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
                         angles='xy', scale_units='xy', scale=1, label='Gtruth',
@@ -608,10 +608,14 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
             curdf = df[(df.distrib == distrib) & (df.linkagemeth == linkagemeth)]
 
             inds = np.where(curdf.clsize2 == 0)
-            rel1avg = np.mean(curdf.iloc[inds].relev) if len(inds[0]) > 0 else 0
+            if len(inds[0]) == 0: rel1avg = 0
+            else: rel1avg = np.sum(curdf.iloc[inds].relev)
+            # else: rel1avg = np.sum(curdf.iloc[inds].relev) / nrealizations
 
             inds = np.where(curdf.clsize2 != 0)
-            rel2avg = np.mean(curdf.iloc[inds].relev) if len(inds[0]) > 0 else 0
+            if len(inds[0]) == 0: rel2avg = 0
+            else: rel2avg = np.sum(curdf.iloc[inds].relev)
+            # else: rel2avg = np.sum(curdf.iloc[inds].relev) / nrealizations
 
             ax[i, 0].quiver(origin, origin, [rel1avg], [rel2avg],
                     color=palette[j], width=.01,
@@ -620,16 +624,16 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
                     headwidth=5, headlength=4, headaxislength=3.5,
                     zorder=1/np.linalg.norm(np.array([rel1avg, rel2avg]))+3)
 
-            ax[i, 0].set_xlim(0, 1.1)
-            ax[i, 0].set_ylim(0, 1.1)
+            ax[i, 0].set_xlim(0, nrealizations)
+            ax[i, 0].set_ylim(0, nrealizations)
 
-        ax[i, 0].set_ylabel('Avg. relevance of 2 clusters predictions', fontsize='medium')
-        ax[i, 0].set_xlabel('Avg. relevance of 1 cluster predictions', fontsize='medium')
+        ax[i, 0].set_ylabel('Sum of the relev. of 2-clusters predictions', fontsize='medium')
+        ax[i, 0].set_xlabel('Sum of the relev. of 1-cluster predictions', fontsize='medium')
         ax[i, 0].legend()
 
     lab = 'relev_{}_'.format(label)
     plt.tight_layout(pad=4)
-    utils.export_individual_axis(ax, fig, distribs, outdir, [.7, .5, .1, .1], lab)
+    utils.export_individual_axis(ax, fig, distribs, outdir, [.7, .5, .15, .1], lab)
 
     for i, distrib in enumerate(distribs): # Plot
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
