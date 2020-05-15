@@ -257,59 +257,6 @@ def plot_contours(labels, outdir, icons=False):
         utils.export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
-def generate_dendrograms_all(distribs, metric, linkagemeths, palette, outdir):
-    info(inspect.stack()[0][3] + '()')
-    pruningparam = 0.1
-    clrelsize = 0.3 # cluster rel. size
-    data, partsz = utils.generate_data(distribs, 200, 2)
-    minnclusters = 2
-    samplesz = data[list(data.keys())[0]].shape[0]
-    ndims = data[list(data.keys())[0]].shape[1]
-    clsize = int(clrelsize * samplesz)
-    nlinkagemeths = len(linkagemeths)
-    ndistribs = len(data.keys())
-    nrows = ndistribs
-    ncols = nlinkagemeths + 1
-    figscale=5
-    fig = plt.figure(figsize=(ncols*figscale, nrows*figscale))
-    ax = np.array([[None]*ncols]*nrows)
-
-    fig.suptitle('Sample size:{}, minnclusters:{},\nmin clustsize:{}'.\
-                 format(samplesz, minnclusters, clsize), fontsize=24)
-
-    nsubplots = nrows * ncols
-
-    for subplotidx in range(nsubplots):
-        i = subplotidx // ncols
-        j = subplotidx % ncols
-
-        if ndims == 3 and j == 0: proj = '3d'
-        else: proj = None
-
-        ax[i, j] = fig.add_subplot(nrows, ncols, subplotidx+1, projection=proj)
-
-    for i, k in enumerate(data):
-        nclusters = int(k.split(',')[0])
-        ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=palette[1])
-
-        for j, l in enumerate(linkagemeths):
-            z = linkage(data[k], l, metric)
-            maxdist = z[-1, 2]
-            clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
-                    clsize, minnclusters, pruningparam)
-            rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
-            plot_dendrogram(z, l, ax[i, j+1], 0, 0, clustids, ['k']*10, [])
-
-    for i, k in enumerate(data):
-        ax[i, 0].set_ylabel(k, rotation=90, size=24)
-
-    utils.export_individual_axis(ax[0, 1:].reshape(len(linkagemeths), 1), fig, linkagemeths,
-                           outdir, 0.2, 'dendrogram_uniform_')
-    plt.tight_layout(pad=4)
-
-    plt.savefig(pjoin(outdir, 'dendrogram_all_{}d_{}.pdf'.format(ndims, samplesz)))
-
-##########################################################
 def plot_article_uniform_distribs_scale(palette, outdir):
     info(inspect.stack()[0][3] + '()')
     samplesz = 350
@@ -375,7 +322,7 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     utils.export_individual_axis(ax, fig, ['2,gaussian,0.15'], outdir, 0.3, 'points_')
 
 ##########################################################
-def plot_dendrogram_clusters(distribs, linkagemeth, metric, palettehex,
+def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
         ndims, outdir):
     info(inspect.stack()[0][3] + '()')
     data, partsz = utils.generate_data(distribs, 200, ndims)
@@ -392,60 +339,61 @@ def plot_dendrogram_clusters(distribs, linkagemeth, metric, palettehex,
     nsubplots = nrows * ncols
     figscale = 5
 
-    fig, ax = plt.subplots(nrows, ncols,
-            figsize=(ncols*figscale, nrows*figscale), squeeze=False)
+    for linkagemeth in linkagemeths:
+        fig, ax = plt.subplots(nrows, ncols,
+                figsize=(ncols*figscale, nrows*figscale), squeeze=False)
 
-    texts = []
-    for i, k in enumerate(distribs):
-        nclusters = int(k.split(',')[0])
+        texts = []
+        for i, k in enumerate(distribs):
+            nclusters = int(k.split(',')[0])
 
-        z = linkage(data[k], linkagemeth, metric)
-        maxdist = z[-1, 2]
-        clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
-                clsize, minnclusters, pruningparam)
+            z = linkage(data[k], linkagemeth, metric)
+            maxdist = z[-1, 2]
+            clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
+                    clsize, minnclusters, pruningparam)
 
-        rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
-        prec = utils.compute_max_precision(clustids, partsz[k], z)
-        colours = plot_dendrogram(z, linkagemeth, ax[i, 2], avgheight,
-                outliersdist, clustids, palettehex, outliers)
-        clsizes = []
-        for clid in clustids: clsizes.append(len(utils.get_leaves(z, clid)))
-        texts.append(ax[i, 2].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
-                format(clsizes, rel, prec),
-                horizontalalignment='center', verticalalignment='center',
-                fontsize=15, transform = ax[i, 2].transAxes))
+            rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
+            prec = utils.compute_max_precision(clustids, partsz[k], z)
+            colours = plot_dendrogram(z, linkagemeth, ax[i, 2], avgheight,
+                    outliersdist, clustids, palettehex, outliers)
+            clsizes = []
+            for clid in clustids: clsizes.append(len(utils.get_leaves(z, clid)))
+            texts.append(ax[i, 2].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
+                    format(clsizes, rel, prec),
+                    horizontalalignment='center', verticalalignment='center',
+                    fontsize=15, transform = ax[i, 2].transAxes))
 
-        ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
-        ax[i, 0].set_title('Spatial coordinates (first cords)')
-        xylim = np.max(np.abs(data[k][:, :2])) * 1.1
-        ax[i, 0].set_xlim(-xylim, +xylim)
-        ax[i, 0].set_ylim(-xylim, +xylim)
-        ax[i, 0].set_ylabel(k, rotation=90, size=24)
+            ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
+            ax[i, 0].set_title('Spatial coordinates (first cords)')
+            xylim = np.max(np.abs(data[k][:, :2])) * 1.1
+            ax[i, 0].set_xlim(-xylim, +xylim)
+            ax[i, 0].set_ylim(-xylim, +xylim)
+            ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-        tr, evecs, evals = utils.pca(data[k], normalize=True)
-        ax[i, 1].set_title('PCA components (pc1 and pc2)')
-        ax[i, 1].scatter(tr[:, 0], tr[:, 1], c=colours)
-        xylim = np.max(np.abs(tr[:, 0:2])) * 1.1
-        ax[i, 1].set_xlim(-xylim, +xylim)
-        ax[i, 1].set_ylim(-xylim, +xylim)
+            tr, evecs, evals = utils.pca(data[k], normalize=True)
+            ax[i, 1].set_title('PCA components (pc1 and pc2)')
+            ax[i, 1].scatter(tr[:, 0], tr[:, 1], c=colours)
+            xylim = np.max(np.abs(tr[:, 0:2])) * 1.1
+            ax[i, 1].set_xlim(-xylim, +xylim)
+            ax[i, 1].set_ylim(-xylim, +xylim)
 
 
-    plt.tight_layout(h_pad=3.5, w_pad=3.5)
-    plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
+        plt.tight_layout(h_pad=3.5, w_pad=3.5)
+        plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
 
-    for i in range(nrows):
-        texts[i].set_visible(False)
-        for j in range(2):
-            ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
-            ax[i, j].set_ylabel('')
+        for i in range(nrows):
+            texts[i].set_visible(False)
+            for j in range(2):
+                ax[i, j].tick_params(axis=u'both', which=u'both',length=0)
+                ax[i, j].set_ylabel('')
 
-    labels = []
-    for v in distribs:
-        labels.append('hieclust_' + v + '_points_'+linkagemeth)
-        labels.append('hieclust_' + v + '_pca_'+linkagemeth)
-        labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
+        labels = []
+        for v in distribs:
+            labels.append('hieclust_' + v + '_points_'+linkagemeth)
+            labels.append('hieclust_' + v + '_pca_'+linkagemeth)
+            labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
 
-    utils.export_individual_axis(ax, fig, labels, outdir, pad=.5, fmt='pdf')
+        # utils.export_individual_axis(ax, fig, labels, outdir, pad=.5, fmt='pdf')
 
 ##########################################################
 def plot_article_quiver(palettehex, outdir):
@@ -631,15 +579,12 @@ def main():
     # distribs += [','.join(['2', d, '5']) for d in decays]
     # distribs += [','.join(['2', d, '6']) for d in decays]
 
-    # realdir = pjoin(outdir, 'realplots/')
-    # if not os.path.isdir(realdir): os.mkdir(realdir)
-    # plot_real_datasets(datasetsdir, realdir)
-    # plot_pca_first_coords(datasetsdir, realdir)
-    # plot_2coords(distribs, palettehex, outdir)
-    generate_dendrograms_all(distribs, metric, linkagemeths, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, 'ward', metric, palettehex,
-            2, outdir)
-    plot_dendrogram_clusters(distribs, 'single', metric, palettehex,
+    realdir = pjoin(outdir, 'realplots/')
+    if not os.path.isdir(realdir): os.mkdir(realdir)
+    plot_real_datasets(datasetsdir, realdir)
+    plot_pca_first_coords(datasetsdir, realdir)
+    plot_2coords(distribs, palettehex, outdir)
+    plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             2, outdir)
     plot_contours(distribs, outdir)
     plot_contours(distribs, outdir, True)
