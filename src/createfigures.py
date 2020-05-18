@@ -439,10 +439,11 @@ def plot_article_quiver(palettehex, outdir):
               width=.005, angles='xy', scale_units='xy', scale=1,
               headwidth=3, headlength=3, headaxislength=2, zorder=3)
 
-    plt.text(0.75, 0.3, 'L',
-             horizontalalignment='center', verticalalignment='center', style='italic',
-             color='#666666',
-             fontsize='x-large', transform = ax.transAxes)
+    plt.text(0.75, 0.3, 'l',
+            horizontalalignment='center', verticalalignment='center', style='italic',
+            color='#666666',
+            color='#666666', fontname='serif',
+
     ax.quiver(2.6, .69, .1, .0, color='#666666',
               width=.005, angles='xy', scale_units='xy', scale=1,
               headwidth=3, headlength=3, headaxislength=2, zorder=3)
