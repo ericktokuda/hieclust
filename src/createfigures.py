@@ -325,7 +325,17 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
 def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
         ndims, outdir):
     info(inspect.stack()[0][3] + '()')
-    data, partsz = utils.generate_data(distribs, 200, ndims)
+    # data, partsz = utils.generate_data(distribs, 200, ndims)
+    distribs = '1 2 3'.split(' ')
+    df = pd.read_csv('/home/frodo/results/graffiti/20200202-types/20200514-combine_me_he/clusters_eric_henrique.csv')
+    df = pd.read_csv('/home/dufresne/temp/20200202-types/20200514-combine_me_he/clusters_eric_henrique.csv')
+    data = {}
+    partsz = {}
+    for l in np.unique(df.label):
+        filtered = df[df.label == l]
+        lstr = str(l)
+        data[lstr] = filtered[['x', 'y']].values
+        partsz[lstr] = [filtered.shape[0]]
     clrelsize = .3
     minnclusters = 2
     nrows = len(distribs)
@@ -346,6 +356,7 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
         texts = []
         for i, k in enumerate(distribs):
             nclusters = int(k.split(',')[0])
+            clsize = int(clrelsize * len(data[k]))
 
             z = linkage(data[k], linkagemeth, metric)
             maxdist = z[-1, 2]
@@ -441,8 +452,7 @@ def plot_article_quiver(palettehex, outdir):
 
     plt.text(0.75, 0.3, 'l',
             horizontalalignment='center', verticalalignment='center', style='italic',
-            color='#666666',
-            color='#666666', fontname='serif',
+            color='#666666', fontname='serif',)
 
     ax.quiver(2.6, .69, .1, .0, color='#666666',
               width=.005, angles='xy', scale_units='xy', scale=1,
@@ -582,16 +592,16 @@ def main():
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(datasetsdir, realdir)
-    plot_pca_first_coords(datasetsdir, realdir)
-    plot_2coords(distribs, palettehex, outdir)
+    # plot_real_datasets(datasetsdir, realdir)
+    # plot_pca_first_coords(datasetsdir, realdir)
+    # plot_2coords(distribs, palettehex, outdir)
     plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             2, outdir)
-    plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, outdir)
-    plot_article_gaussian_distribs_scale(palettehex, outdir)
-    plot_article_quiver(palettehex, outdir)
+    # plot_contours(distribs, outdir)
+    # plot_contours(distribs, outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, outdir)
+    # plot_article_quiver(palettehex, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
     
