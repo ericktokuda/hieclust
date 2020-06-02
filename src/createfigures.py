@@ -441,8 +441,7 @@ def plot_article_quiver(palettehex, outdir):
 
     plt.text(0.75, 0.3, 'l',
             horizontalalignment='center', verticalalignment='center', style='italic',
-            color='#666666',
-            color='#666666', fontname='serif',
+            color='#666666', fontname='serif')
 
     ax.quiver(2.6, .69, .1, .0, color='#666666',
               width=.005, angles='xy', scale_units='xy', scale=1,
