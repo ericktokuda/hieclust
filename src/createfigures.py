@@ -326,6 +326,8 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
         ndims, outdir):
     info(inspect.stack()[0][3] + '()')
     data, partsz = utils.generate_data(distribs, 200, ndims)
+    import pickle as pkl
+    pkl.dump(data, open('/tmp/data.pkl', 'wb'))
     clrelsize = .3
     minnclusters = 2
     nrows = len(distribs)
@@ -581,16 +583,16 @@ def main():
 
     realdir = pjoin(outdir, 'realplots/')
     if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(datasetsdir, realdir)
-    plot_pca_first_coords(datasetsdir, realdir)
-    plot_2coords(distribs, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
+    # plot_real_datasets(datasetsdir, realdir)
+    # plot_pca_first_coords(datasetsdir, realdir)
+    # plot_2coords(distribs, palettehex, outdir)
+    plot_dendrogram_clusters(distribs+['2,hdb'], linkagemeths, metric, palettehex,
             2, outdir)
-    plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, outdir)
-    plot_article_gaussian_distribs_scale(palettehex, outdir)
-    plot_article_quiver(palettehex, outdir)
+    # plot_contours(distribs, outdir)
+    # plot_contours(distribs, outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, outdir)
+    # plot_article_gaussian_distribs_scale(palettehex, outdir)
+    # plot_article_quiver(palettehex, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
     
