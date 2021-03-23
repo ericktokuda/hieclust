@@ -571,6 +571,7 @@ def plot_vectors_all(pardir, distribs, linkagemeths, palettehex, outdir):
     if os.path.exists(featpath):
         plot_vectors(featpath, distribs, linkagemeths, '', palettehex, outdir)
 
+    vectordata = []
     files = sorted(os.listdir(pardir))
     for f in files:
         dirpath = pjoin(pardir, f)
@@ -578,7 +579,12 @@ def plot_vectors_all(pardir, distribs, linkagemeths, palettehex, outdir):
         if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
         info(f)
         featdf = pd.read_csv(pjoin(dirpath, 'features.csv'), sep='|')
-        plot_vectors(featdf, distribs, linkagemeths, f, palettehex, outdir)
+        vectordata.extend(plot_vectors(featdf, distribs, linkagemeths, f,
+            palettehex, outdir))
+
+    cols = 'dim,modes,distribution,linkagemeth,rel1avg,rel2avg'.split(',')
+    pd.DataFrame(vectordata, columns=cols).to_csv(pjoin(outdir, 'vectors.csv'),
+            index=False)
 
 ##########################################################
 def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
@@ -596,6 +602,7 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
     gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
 
     origin = np.zeros(2)
+    vectordata = []
     for i, distrib in enumerate(distribs):
         xs = np.array([gtruths[distrib][0]*nrealizations])
         ys = np.array([gtruths[distrib][1]*nrealizations])
@@ -616,6 +623,13 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
             if len(inds[0]) == 0: rel2avg = 0
             else: rel2avg = np.sum(curdf.iloc[inds].relev)
             # else: rel2avg = np.sum(curdf.iloc[inds].relev) / nrealizations
+
+            aux = distrib.split(',') # In the form '2,exponential,4'
+            modes = 1 if len(aux) == 2 else 2
+            distrib2 = aux[1]
+            dims = int(label[:-1])
+
+            vectordata.append([dims, modes, distrib2, linkagemeth, rel1avg, rel2avg])
 
             ax[i, 0].quiver(origin, origin, [rel1avg], [rel2avg],
                     color=palette[j], width=.01,
@@ -639,6 +653,7 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
         ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
 
     plt.savefig(pjoin(outdir, '{}all.pdf'.format(lab)))
+    return vectordata
 
 ##########################################################
 def main():
