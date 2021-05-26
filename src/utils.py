@@ -226,6 +226,8 @@ def generate_data(distribs, samplesz, ndims):
             data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads)
             data[k] = shift_clusters(data[k], partsz[k], alpha)
 
+    # load hdbscan example data
+    data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
     return data, partsz
     
 ##########################################################

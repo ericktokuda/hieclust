@@ -277,6 +277,62 @@ def plot_article_uniform_distribs_scale(palette, outdir):
             outdir, 0.3, 'points_')
 
 ##########################################################
+def plot_article_uniform_distribs_scale3(palette, outdir):
+    info(inspect.stack()[0][3] + '()')
+    samplesz = 350
+    ndims = 2
+
+    # mus = np.ones((2, ndims))*.7
+    # mus[1, :] *= -1
+    mus = np.array([
+        [np.cos(0), np.sin(0)],
+        [np.cos(2 / 3 * np.pi), np.sin(2 / 3 * np.pi)],
+        [np.cos(4 / 3 * np.pi), np.sin(4 / 3 * np.pi)],
+    ])
+    r = .80
+    rs = np.ones(3) * r
+    rs = [.7, .8, .8]
+    coords2 = np.ndarray((0, 2))
+    coords1, _ = utils.generate_uniform(samplesz, ndims, mus, rs)
+    coords = np.concatenate((coords1, coords2))
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
+    ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
+
+    plt.tight_layout()
+    utils.export_individual_axis(ax, fig, ['3,uniform,rad{}'.format(r)],
+            outdir, 0.4, 'points_')
+
+##########################################################
+def plot_article_uniform_distribs_scale4(palette, outdir):
+    info(inspect.stack()[0][3] + '()')
+    samplesz = 350
+    ndims = 2
+
+    # mus = np.ones((2, ndims))*.7
+    # mus[1, :] *= -1
+    # mus = np.ones((4, ndims))*.7
+    mus = np.array([
+        [-.9, -.8],
+        [-.8,  .9],
+        [ .8,  .5],
+        [ .9,  -.9],
+    ])
+    r = .80
+    rs = np.ones(3) * r
+    rs = [.6, .8, .7, .6]
+    coords2 = np.ndarray((0, 2))
+    coords1, _ = utils.generate_uniform(samplesz, ndims, mus, rs)
+    coords = np.concatenate((coords1, coords2))
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
+    ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
+
+    plt.tight_layout()
+    utils.export_individual_axis(ax, fig, ['4,uniform,rad{}'.format(r)],
+            outdir, 0.4, 'points_')
+
+##########################################################
 def plot_article_gaussian_distribs_scale(palette, outdir):
     info(inspect.stack()[0][3] + '()')
     samplesz = 600
@@ -341,7 +397,7 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
 
     for linkagemeth in linkagemeths:
         fig, ax = plt.subplots(nrows, ncols,
-                figsize=(ncols*figscale, nrows*figscale), squeeze=False)
+                figsize=(1.5*ncols*figscale, nrows*figscale), squeeze=False)
 
         texts = []
         for i, k in enumerate(distribs):
@@ -368,6 +424,12 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             xylim = np.max(np.abs(data[k][:, :2])) * 1.1
             ax[i, 0].set_xlim(-xylim, +xylim)
             ax[i, 0].set_ylim(-xylim, +xylim)
+
+            fac = 1.5
+            ax[i, 0].set_xlim(-fac*6, +fac*6)
+            ax[i, 0].set_ylim(-6, +6)
+            # ax[i, 0].set_aspect('equal', adjustable='box')
+
             ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
             tr, evecs, evals = utils.pca(data[k], normalize=True)
@@ -376,6 +438,7 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             xylim = np.max(np.abs(tr[:, 0:2])) * 1.1
             ax[i, 1].set_xlim(-xylim, +xylim)
             ax[i, 1].set_ylim(-xylim, +xylim)
+
 
 
         plt.tight_layout(h_pad=3.5, w_pad=3.5)
@@ -441,6 +504,7 @@ def plot_article_quiver(palettehex, outdir):
 
     plt.text(0.75, 0.3, 'l',
             horizontalalignment='center', verticalalignment='center', style='italic',
+            # color='#666666',
             color='#666666', fontname='serif')
 
     ax.quiver(2.6, .69, .1, .0, color='#666666',
@@ -475,7 +539,7 @@ def plot_combinations(dforig, label, outdir):
 
     for i, comb in enumerate(combs):
         try:
-            fig, ax = plt.subplots(figsize=(s, .8*s))
+            fig, ax = plt.subplots(figsize=(s, .75*s))
             for cl in clusters:
                 df = dforig[dforig['target'] == cl]
                 ax.scatter(df[comb[0]], df[comb[1]], c=palettehex[1])
@@ -488,6 +552,83 @@ def plot_combinations(dforig, label, outdir):
         except Exception as e:
             info(e)
 
+##########################################################
+def plot_combinations3d(dforig, label, outdir):
+    s = 4
+    cols = list(dforig.columns)
+    cols.remove('target')
+    palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    combs = list(itertools.combinations(cols, 3))
+    clusters = np.unique(dforig['target'])
+
+    for i, comb in enumerate(combs):
+        try:
+            # fig, ax = plt.subplots(figsize=(s, .8*s))
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='3d')
+            for cl in clusters:
+                df = dforig[dforig['target'] == cl]
+                # print(comb, cl)
+                ax.scatter(df[comb[0]], df[comb[1]], df[comb[2]], c=palettehex[1])
+                ax.set_xlabel(comb[0])
+                ax.set_ylabel(comb[1])
+            ax.set_title('{}'.format(label))
+            plt.tight_layout()
+            plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
+            plt.close()
+        except Exception as e:
+            info(e)
+
+##########################################################
+def plot_combinations_selected(df, label, outdir):
+
+    s = 4
+    cols = list(df.columns)
+    cols.remove('target')
+    plt.style.use('default')
+    palettehex = ['#E24A33', '#348ABD', '#988ED5', '#777777', '#FBC15E', '#8EBA42', '#FFB5B8']
+    # palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    combs = list(itertools.combinations(cols, 3))
+    clusters = np.unique(df['target'])
+
+    sel = dict(
+        abalone = [['Shell weight', 'Shucked weight']],
+        bank_marketing = [['duration', 'balance']],
+        diabetes = [['BMI', 'Glucose']],
+        cancer = [['mean symmetry', 'mean smoothness'],
+                  ['worst concave points', 'mean concave points'],
+                  ['texture error', 'mean symmetry']],
+        heart = [['chol', 'age']],
+        sonar = [['freq54', 'freq00'],
+                 ['freq49', 'freq06']],
+    )
+
+    for i, comb in enumerate(combs):
+
+        match = False
+        for feats in sel[label]:
+            if feats[0] in comb and feats[1] in comb:
+                match = True
+                break
+        if not match: continue
+
+        try:
+            for j, alpha in enumerate(np.arange(0, 360, 30)):
+                fig = plt.figure(figsize=(5, 4))
+                ax = fig.add_subplot(projection='3d')
+
+                ax.view_init(elev=10., azim=alpha)
+                ax.scatter(df[comb[0]], df[comb[1]], df[comb[2]], c=palettehex[1])
+                ax.set_xlabel(comb[0])
+                ax.set_ylabel(comb[1])
+                ax.set_zlabel(comb[2])
+
+                # ax.set_title('{}'.format(label))
+                # plt.tight_layout()
+                plt.savefig(pjoin(outdir, '{}_{:03d}_{:02d}.png'.format(label, i, j)))
+                plt.close()
+        except Exception as e:
+            info(e)
 ##########################################################
 def plot_pca_first_coords(datasetsdir, outdir):
     s = 4
@@ -550,6 +691,51 @@ def plot_real_datasets(datasetsdir, outdir):
     return
 
 ##########################################################
+def plot_real_datasets_selected(datasetsdir, outdir):
+    info(inspect.stack()[0][3] + '()')
+    for f in sorted(os.listdir(datasetsdir)): # cached datasets
+        if not f.endswith('.csv'): continue
+        name = f.split('.csv')[0]
+        if not name in ['abalone', 'diabetes', 'heart', 'sonar', 'bank_marketing']:
+            continue
+        info('Plotting {}'.format(f))
+        df = pd.read_csv(pjoin(datasetsdir, f))
+        plot_combinations_selected(df, f.replace('.csv', ''), outdir)
+
+    all = { #scikit datasets
+            'cancer': sklearn.datasets.load_breast_cancer(),
+            }
+
+    for k, v in all.items():
+        info('Plotting {}'.format(k))
+        dforig = sklearn_to_df(v)
+        plot_combinations_selected(dforig, k, outdir)
+
+    return
+
+##########################################################
+def plot_real_datasets3d(datasetsdir, outdir):
+    info(inspect.stack()[0][3] + '()')
+    for f in sorted(os.listdir(datasetsdir)): # cached datasets
+        if not f.endswith('.csv'): continue
+        info('Plotting {}'.format(f))
+        df = pd.read_csv(pjoin(datasetsdir, f))
+        plot_combinations3d(df, f.replace('.csv', ''), outdir)
+
+    all = { #scikit datasets
+            'iris': sklearn.datasets.load_iris(),
+            'cancer': sklearn.datasets.load_breast_cancer(),
+            'wine': sklearn.datasets.load_wine(),
+            }
+
+    for k, v in all.items():
+        info('Plotting {}'.format(k))
+        dforig = sklearn_to_df(v)
+        plot_combinations3d(dforig, k, outdir)
+
+    return
+
+##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pardir', default='/tmp/out/', help='Parent dir')
@@ -562,8 +748,7 @@ def main():
     t0 = time.time()
 
     outdir = pjoin(args.pardir, 'figsarticle')
-    if not os.path.isdir(outdir): os.mkdir(outdir)
-    else: info('Overwriting contents of folder {}'.format(outdir))
+    os.makedirs(outdir, exist_ok=True)
 
     np.random.seed(args.seed)
 
@@ -580,17 +765,24 @@ def main():
     # distribs += [','.join(['2', d, '6']) for d in decays]
 
     realdir = pjoin(outdir, 'realplots/')
-    if not os.path.isdir(realdir): os.mkdir(realdir)
-    plot_real_datasets(datasetsdir, realdir)
-    plot_pca_first_coords(datasetsdir, realdir)
-    plot_2coords(distribs, palettehex, outdir)
-    plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
-            2, outdir)
-    plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
-    plot_article_uniform_distribs_scale(palettehex, outdir)
-    plot_article_gaussian_distribs_scale(palettehex, outdir)
-    plot_article_quiver(palettehex, outdir)
+    os.makedirs(realdir, exist_ok=True)
+    # plot_real_datasets(datasetsdir, realdir)
+    plot_real_datasets_selected(datasetsdir, realdir)
+    return
+    # plot_real_datasets3d(datasetsdir, realdir)
+    # return
+    # plot_pca_first_coords(datasetsdir, realdir)
+    # plot_2coords(distribs, palettehex, outdir)
+    # plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
+            # 2, outdir)
+    # plot_contours(distribs, outdir)
+    # plot_contours(distribs, outdir, True)
+    # plot_article_uniform_distribs_scale(palettehex, outdir)
+    # plot_article_uniform_distribs_scale3(palettehex, outdir)
+    plot_article_uniform_distribs_scale4(palettehex, outdir)
+    
+    # plot_article_gaussian_distribs_scale(palettehex, outdir)
+    # plot_article_quiver(palettehex, outdir)
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
     
