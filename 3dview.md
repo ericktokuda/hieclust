@@ -6,7 +6,7 @@ Below we can visualize the plot of different data. It can be observed that their
 <p style="text-align: center;">Abalone dataset</p>
 
 <a href="https://archive.ics.uci.edu/ml/datasets/abalone">
-<img src="https://github.com/ericktokuda/hieclust/raw/master/animations/abalone_055.gif" title="Abalone dataset" width="640">
+<img align="left" src="https://github.com/ericktokuda/hieclust/raw/master/animations/abalone_055.gif" title="Abalone dataset" width="640">
 </a>
 
 
