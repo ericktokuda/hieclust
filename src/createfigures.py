@@ -98,6 +98,7 @@ def plot_2coords(distribs, palettehex, outdir):
         axs[0, i].set_xlim(-max_, +max_)
         axs[0, i].set_ylim(-max_, +max_)
     plt.savefig(pjoin(outdir, 'points_all.pdf'))
+    
 
 ##########################################################
 def mesh_xy(min, max, s):
@@ -270,6 +271,10 @@ def plot_article_uniform_distribs_scale(palette, outdir):
     coords1, _ = utils.generate_uniform(samplesz, ndims, mus, rs)
     coords = np.concatenate((coords1, coords2))
 
+    linkagemeth = 'average'
+    plot_raw_dendrogram(coords, linkagemeth, 5,
+                        pjoin(outdir, 'dendr2_{}.pdf'.format(linkagemeth)))
+
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
 
@@ -295,6 +300,10 @@ def plot_article_uniform_distribs_scale3(palette, outdir):
     coords2 = np.ndarray((0, 2))
     coords1, _ = utils.generate_uniform(samplesz, ndims, mus, rs)
     coords = np.concatenate((coords1, coords2))
+
+    linkagemeth = 'average'
+    plot_raw_dendrogram(coords, linkagemeth, 5,
+                        pjoin(outdir, 'dendr3_{}.pdf'.format(linkagemeth)))
 
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
@@ -324,6 +333,10 @@ def plot_article_uniform_distribs_scale4(palette, outdir):
     coords2 = np.ndarray((0, 2))
     coords1, _ = utils.generate_uniform(samplesz, ndims, mus, rs)
     coords = np.concatenate((coords1, coords2))
+
+    linkagemeth = 'average'
+    plot_raw_dendrogram(coords, linkagemeth, 5,
+                        pjoin(outdir, 'dendr4_{}.pdf'.format(linkagemeth)))
 
     fig, ax = plt.subplots(1, 1, figsize=(5, 5), squeeze=False)
     ax[0, 0].scatter(coords[:, 0], coords[:, 1], c=palette[1])
@@ -468,50 +481,36 @@ def plot_article_quiver(palettehex, outdir):
     v3 = v2 - v1
     delta = .01
 
-    ax.quiver(orig[0], orig[1], v1[0], v1[1], color=palettehex[0],
+    matplotlib.rcParams['text.usetex'] = True
+    ax.quiver(orig[0], orig[1], v1[0], v1[1], color=palettehex[2],
               width=.010, angles='xy', scale_units='xy', scale=1,
               headwidth=4, headlength=4, headaxislength=3, zorder=3)
-
     ax.quiver(orig[0], orig[1]+delta, v2[0]-delta, v2[1],
-              color='#000000', alpha=.7,
+              color=palettehex[1],
               width=.013, angles='xy', scale_units='xy', scale=1,
               headwidth=4, headlength=4, headaxislength=3, zorder=3)
-
     ax.quiver(v1[0] + delta, v1[1] - delta, v3[0]-delta, v3[1]+delta,
-              color='#999999', alpha=1.0,
+              color='#999999', alpha=1.0, linestyle='dashed',
               width=.007, angles='xy', scale_units='xy', scale=1,
               headwidth=5, headlength=8, headaxislength=5, zorder=3)
 
     ax.scatter([0.6], [1.8], s=2, c='k')
-    # plt.text(0.32, 0.9, '(0.6, 1.8)',
-             # horizontalalignment='center', verticalalignment='center',
-             # fontsize='large', transform = ax.transAxes)
 
-    plt.text(0.16, 0.47, 'r',
+    plt.text(0.16, 0.47, r'\overrightarrow{r}',
              horizontalalignment='center', verticalalignment='center',
-             color=palettehex[0], style='italic',
-             fontsize='x-large', transform = ax.transAxes)
-    ax.quiver(.53, 1.01, .1, .0, color=palettehex[0],
-              width=.005, angles='xy', scale_units='xy', scale=1,
-              headwidth=3, headlength=3, headaxislength=2, zorder=3)
+             color=palettehex[2],
+             style='italic', fontsize='xx-large', transform = ax.transAxes)
+    plt.text(0.45, 0.08, r'\overrightarrow{g}',
+             color=palettehex[1],
+             horizontalalignment='center', verticalalignment='center',
+             style='italic', fontsize='xx-large', transform = ax.transAxes)
+    plt.text(.63, 0.4, r'\overrightarrow{l}',
+             horizontalalignment='center', verticalalignment='center',
+             color='#666666', style='italic',
+             fontsize='xx-large', transform = ax.transAxes)
 
-    plt.text(0.45, 0.08, 'g',
-             horizontalalignment='center', verticalalignment='center', style='italic',
-             fontsize='x-large', transform = ax.transAxes)
-    ax.quiver(1.55, .23, .1, .0, color='k',
-              width=.005, angles='xy', scale_units='xy', scale=1,
-              headwidth=3, headlength=3, headaxislength=2, zorder=3)
-
-    plt.text(0.75, 0.3, 'l',
-            horizontalalignment='center', verticalalignment='center', style='italic',
-            # color='#666666',
-            color='#666666', fontname='serif')
-
-    ax.quiver(2.6, .69, .1, .0, color='#666666',
-              width=.005, angles='xy', scale_units='xy', scale=1,
-              headwidth=3, headlength=3, headaxislength=2, zorder=3)
-    ax.set_ylabel('Relevance of 2 clusters', fontsize='large')
-    ax.set_xlabel('Relevance of 1 cluster', fontsize='large')
+    ax.set_ylabel(r'$R_2$', fontsize='large')
+    ax.set_xlabel(r'$R_1$', fontsize='large')
     ax.set_xticks([0, 1, 2, 3.0])
     ax.set_yticks([0, 1, 2])
     from matplotlib.ticker import FormatStrFormatter
@@ -520,7 +519,6 @@ def plot_article_quiver(palettehex, outdir):
     ax.set_xlim(0, 3.5)
     ax.set_ylim(0, 2)
     plt.tight_layout(pad=1)
-
     plt.savefig(pjoin(outdir, 'vector.pdf'))
 
 def sklearn_to_df(sklearn_dataset):
@@ -613,8 +611,8 @@ def plot_combinations_selected(df, label, outdir):
         if not match: continue
 
         try:
-            for j, alpha in enumerate(np.arange(0, 360, 30)):
-                fig = plt.figure(figsize=(5, 4))
+            for j, alpha in enumerate(np.arange(0, 360, 2)):
+                fig = plt.figure(figsize=(8, 6))
                 ax = fig.add_subplot(projection='3d')
 
                 ax.view_init(elev=10., azim=alpha)
@@ -624,7 +622,7 @@ def plot_combinations_selected(df, label, outdir):
                 ax.set_zlabel(comb[2])
 
                 # ax.set_title('{}'.format(label))
-                # plt.tight_layout()
+                plt.tight_layout()
                 plt.savefig(pjoin(outdir, '{}_{:03d}_{:02d}.png'.format(label, i, j)))
                 plt.close()
         except Exception as e:
@@ -736,6 +734,26 @@ def plot_real_datasets3d(datasetsdir, outdir):
     return
 
 ##########################################################
+def plot_raw_dendrogram(data, linkagemeth, figscale, outpath):
+    """Plot non-fancy dendrogram."""
+    info(inspect.stack()[0][3] + '()')
+    z = linkage(data, 'average')
+    figscale = 5
+    fig, ax = plt.subplots(1, figsize=(1.5*figscale, figscale))
+    dendrogram(
+        z,
+        color_threshold=0,
+        truncate_mode=None,
+        show_contracted=False,
+        show_leaf_counts=False,
+        no_labels=True,
+        ax=ax,
+        link_color_func=lambda k: 'k',
+    )
+    plt.savefig(outpath)
+    plt.close()
+
+##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pardir', default='/tmp/out/', help='Parent dir')
@@ -767,25 +785,28 @@ def main():
     realdir = pjoin(outdir, 'realplots/')
     os.makedirs(realdir, exist_ok=True)
     # plot_real_datasets(datasetsdir, realdir)
-    plot_real_datasets_selected(datasetsdir, realdir)
-    return
+    # plot_real_datasets_selected(datasetsdir, realdir)
+    # return
     # plot_real_datasets3d(datasetsdir, realdir)
     # return
     # plot_pca_first_coords(datasetsdir, realdir)
     # plot_2coords(distribs, palettehex, outdir)
+    # breakpoint()
+
     # plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             # 2, outdir)
     # plot_contours(distribs, outdir)
     # plot_contours(distribs, outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, outdir)
     # plot_article_uniform_distribs_scale3(palettehex, outdir)
-    plot_article_uniform_distribs_scale4(palettehex, outdir)
-    
+    # plot_article_uniform_distribs_scale4(palettehex, outdir)
+
     # plot_article_gaussian_distribs_scale(palettehex, outdir)
-    # plot_article_quiver(palettehex, outdir)
+    plot_article_quiver(palettehex, outdir)
+
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
-    
+
 ##########################################################
 if __name__ == "__main__":
     main()

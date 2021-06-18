@@ -641,8 +641,8 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
             ax[i, 0].set_xlim(0, nrealizations)
             ax[i, 0].set_ylim(0, nrealizations)
 
-        ax[i, 0].set_ylabel('Sum of the relev. of 2-clusters predictions', fontsize='medium')
-        ax[i, 0].set_xlabel('Sum of the relev. of 1-cluster predictions', fontsize='medium')
+        ax[i, 0].set_xlabel(r'$R_1$', fontsize='medium')
+        ax[i, 0].set_ylabel(r'$R_2$', fontsize='medium')
         ax[i, 0].legend()
 
     lab = 'relev_{}_'.format(label)
@@ -680,23 +680,24 @@ def main():
     distribs = np.unique(resdf.distrib)
     linkagemeths = resdf.columns[1:-1]
 
-    plot_parallel_all(resdf, iconsdir, '_dims', palettehex, outdir)
-    resdf = filters_by_dim(resdf, [2, 4, 5, 10])
-    plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
+    # plot_parallel_all(resdf, iconsdir, '_dims', palettehex, outdir)
+    # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
+    # plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
 
-    count_method_ranking(resdf, linkagemeths, 'single', outdir)
-    methscorr = {}
-    for nclu in ['1', '2']:
-        methscorr[nclu] = compute_correlation(resdf, nclu, linkagemeths,
-                palettehex, outdir)
-        plot_meths_heatmap(methscorr[nclu], linkagemeths, nclu, outdir)
-        plot_graph(methscorr[nclu], linkagemeths, palettehex, nclu, outdir)
+    # count_method_ranking(resdf, linkagemeths, 'single', outdir)
+    # methscorr = {}
+    # for nclu in ['1', '2']:
+        # methscorr[nclu] = compute_correlation(resdf, nclu, linkagemeths,
+                # palettehex, outdir)
+        # plot_meths_heatmap(methscorr[nclu], linkagemeths, nclu, outdir)
+        # plot_graph(methscorr[nclu], linkagemeths, palettehex, nclu, outdir)
 
-    scatter_pairwise(resdf, methscorr, linkagemeths, palettehex, outdir)
+    # scatter_pairwise(resdf, methscorr, linkagemeths, palettehex, outdir)
 
-    analyze_features_all(args.pardir, palettehex, outdir)
+    # analyze_features_all(args.pardir, palettehex, outdir)
 
     plot_vectors_all(args.pardir, distribs, linkagemeths, palettehex, outdir)
+    return
     analyze_features_all(args.pardir, palettehex, outdir)
     print_single_precision(args.pardir, outdir)
     print_ward_precision(args.pardir, outdir)
