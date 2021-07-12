@@ -8,6 +8,7 @@ from os.path import join as pjoin
 from logging import debug, info
 import os
 import inspect
+from math import acos
 import numpy as np
 
 import matplotlib; matplotlib.use('Agg')
@@ -16,6 +17,7 @@ from matplotlib import pyplot as plt; plt.style.use('ggplot')
 import scipy
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import cdist
+from scipy.optimize import brentq
 import pandas as pd
 from sklearn import preprocessing
 
@@ -184,7 +186,7 @@ def generate_data(distribs, samplesz, ndims):
     r = np.array([1])
     if k in distribs:
         data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
- 
+
     k = '1,gaussian'
     cov = np.array([np.eye(ndims)])*.3
     if k in distribs:
@@ -227,7 +229,50 @@ def generate_data(distribs, samplesz, ndims):
             data[k] = shift_clusters(data[k], partsz[k], alpha)
 
     # load hdbscan example data
-    data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
+    # data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
+
+    # TODO: fix this
+    distribs = ['2,overlap,10', '2,overlap,30', '2,overlap,50']
+
+    # Generate overlap
+    for k in distribs:
+        info(k)
+        samplesz = 1000
+
+        if not ('2,overlap' in k): continue
+
+        _, _, perc = k.split(',')
+        ratio = float(perc)/100
+        data[k], partsz[k] = generate_uniform(samplesz, ndims,
+                                              np.zeros((2, 2)), rads)
+        r = rads[0] # Two symmetrical circles
+
+        inter = (np.pi * r * r) * (float(perc) / 100) # Area
+
+        if inter == 0:
+            d = r
+        else:
+            def f(d):
+                A = 2*r*r*acos(d/2/r) - (d/2)*np.sqrt(4*r*r-d*d)
+                return A - inter
+            d = brentq(f, 0, 2*r, xtol=0.001, rtol=0.01)
+
+        term = d / np.sqrt(8) # Symmetrical positions wrt the origin
+        data[k][:partsz[k][0]] -= term
+        data[k][partsz[k][0]:] += term
+
+        # a = data[k]; b = partsz[k]
+        # plt.close();
+        # plt.scatter(a[:b[0], 0], a[:b[0], 1], label='A')
+        # plt.scatter(a[b[0]:, 0], a[b[0]:, 1], label='B')
+        # plt.legend()
+        # plt.savefig('/tmp/{}.png'.format(perc))
+
+    breakpoint()
+    
+    # Generate inbalance
+    # A = 2*r*r*acos(d/2r) - (d/2)*np.sqrt(4*r*r-d*d)
+
     return data, partsz
     
 ##########################################################
