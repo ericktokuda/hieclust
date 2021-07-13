@@ -168,8 +168,9 @@ def main():
     # linkagemeths = ['single']
     decays = 'uniform,gaussian,power,exponential'.split(',')
     alpha = '4'
+    distribs = []
 
-    distribs = [','.join(['1', d]) for d in decays]
+    distribs += [','.join(['1', d]) for d in decays]
     distribs += [','.join(['2', d, alpha]) for d in decays]
 
     alphas =  # overlap
