@@ -79,8 +79,9 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
     fh.close()
 
 ##########################################################
-def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsize,
-        precthresh, nrealizations, outliersratio, palettehex, outdir):
+def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths,
+        clrelsize, precthresh, nrealizations, outliersratio, palettehex,
+        outdir):
 
     info('Computing relevances...')
     minnclusters = 2
@@ -104,6 +105,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
     for r in range(nrealizations): # loop realization
         info('realization {:02d}'.format(r))
         data, partsz = utils.generate_data(distribs, samplesz, ndims)
+        # utils.plot_data(data, partsz, outdir)
 
         for j, linkagemeth in enumerate(linkagemeths): # loop method
             for i, distrib in enumerate(data): # loop distrib
@@ -165,7 +167,6 @@ def main():
     np.random.seed(args.seed)
 
     linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
-    # linkagemeths = ['single']
     decays = 'uniform,gaussian,power,exponential'.split(',')
     alpha = '4'
     distribs = []
@@ -173,8 +174,8 @@ def main():
     distribs += [','.join(['1', d]) for d in decays]
     distribs += [','.join(['2', d, alpha]) for d in decays]
 
-    alphas =  # overlap
-    distribs += [ '2,overlap,{}'.format(a) for a in np.arange(2, 7, .5) ]
+    alphas =  np.arange(2, 7, .5) # overlap
+    distribs += [ '2,overlap,{}'.format(a) for a in alphas ]
 
     ratios = np.arange(.500, .761, 0.02) # inbalance
     distribs += [ '2,inbalance,{:.02f}'.format(r) for r in ratios ]
