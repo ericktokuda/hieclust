@@ -29,7 +29,7 @@ def extract_features(maxdist, ouliersdist, avgheight, noutliers, clustids, z):
     for i in [0, 1]:
         if len(clustids) > i:
             clsizes[i] = len(utils.get_leaves(z, clustids[i]))
-            
+
     features = np.array([maxdist, ouliersdist, avgheight, noutliers] + clsizes)
     features = np.concatenate((features, z[:, 2]))
     return features
@@ -119,7 +119,8 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths, clrelsi
                         minnclusters, outliersratio)
                 clustids, avgheight, ouliersdist, outliers = ret
                 features[distrib][linkagemeth][r] = \
-                        extract_features(maxdist, ouliersdist, avgheight, len(outliers), clustids, z)
+                        extract_features(maxdist, ouliersdist, avgheight,
+                                         len(outliers), clustids, z)
 
                 rel = utils.calculate_relevance(avgheight, ouliersdist, maxdist)
                 prec = utils.compute_max_precision(clustids, partsz[distrib], z)
@@ -170,7 +171,13 @@ def main():
 
     distribs = [','.join(['1', d]) for d in decays]
     distribs += [','.join(['2', d, alpha]) for d in decays]
-    # distribs = ['2,exponential,4']
+
+    alphas =  # overlap
+    distribs += [ '2,overlap,{}'.format(a) for a in np.arange(2, 7, .5) ]
+
+    ratios = np.arange(.500, .761, 0.02) # inbalance
+    distribs += [ '2,inbalance,{:.02f}'.format(r) for r in ratios ]
+
     metric = 'euclidean'
     pruningparam = 0.02
     clrelsize = 0.3 # cluster rel. size
