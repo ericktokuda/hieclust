@@ -47,6 +47,7 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
     n = z.shape[0] + 1
     colors = (2 * n - 1) * ['k']
     clcolours = [palette[0], palette[5]]
+    # clcolours = ['k', 'k']
     outlierscolour = palette[1]
 
     for i, clustid in enumerate(clustids):
@@ -210,7 +211,7 @@ def plot_contours(labels, outdir, icons=False):
     mu = np.array([[0, 0]])
     r = np.array([.9])
     plot_contour_uniform(mu, r, s, ax[0, 0], cmap, linewidth) # 1 uniform
- 
+
     mus = np.zeros((1, ndims))
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
     plot_contour_gaussian(ndims, mus, covs, s, ax[0, 1], cmap, linewidth)
@@ -379,7 +380,7 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
     ax[0, 0].quiver(origin, origin, [-1.41], [1.41], color=mycolour, width=.008,
               angles='xy', scale_units='xy', scale=1, alpha=.3,
               headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
-    
+
     nnoise = 60
     noisex = np.random.rand(nnoise) * 4 + (-2)
     noisey = np.random.rand(nnoise) * 4 + (-2)
@@ -400,17 +401,17 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
     nrows = len(distribs)
     ndistribs = nrows
     ncols = 3
-    pruningparam = .02
+    pruningparam = .03
     samplesz = data[list(data.keys())[0]].shape[0]
     # ndims = data[list(data.keys())[0]].shape[1]
     clsize = int(clrelsize * samplesz)
 
     nsubplots = nrows * ncols
-    figscale = 5
+    figscale = 4
 
     for linkagemeth in linkagemeths:
         fig, ax = plt.subplots(nrows, ncols,
-                figsize=(1.5*ncols*figscale, nrows*figscale), squeeze=False)
+                figsize=(1.2*ncols*figscale, nrows*figscale), squeeze=False)
 
         texts = []
         for i, k in enumerate(distribs):
@@ -469,6 +470,7 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             labels.append('hieclust_' + v + '_pca_'+linkagemeth)
             labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
 
+        break
         # utils.export_individual_axis(ax, fig, labels, outdir, pad=.5, fmt='pdf')
 
 ##########################################################
@@ -540,12 +542,13 @@ def plot_combinations(dforig, label, outdir):
             fig, ax = plt.subplots(figsize=(s, .75*s))
             for cl in clusters:
                 df = dforig[dforig['target'] == cl]
-                ax.scatter(df[comb[0]], df[comb[1]], c=palettehex[1])
+                ax.scatter(df[comb[0]], df[comb[1]], c=palettehex[1], s=8,
+                           alpha=.4, edgecolors='none')
                 ax.set_xlabel(comb[0])
                 ax.set_ylabel(comb[1])
-            ax.set_title('{}'.format(label))
+            # ax.set_title('{}'.format(label))
             plt.tight_layout()
-            plt.savefig(pjoin(outdir, '{}_{:03d}.pdf'.format(label, i)))
+            plt.savefig(pjoin(outdir, '{}_{:03d}.png'.format(label, i)))
             plt.close()
         except Exception as e:
             info(e)
@@ -786,23 +789,32 @@ def main():
     os.makedirs(realdir, exist_ok=True)
     # plot_real_datasets(datasetsdir, realdir)
     # plot_real_datasets_selected(datasetsdir, realdir)
+    # distribs = []
+    # alphas =  np.arange(2, 7, .5) # overlap
+    # distribs += [ '2,overlap,{}'.format(a) for a in alphas ]
+    # ratios = np.arange(.500, .761, 0.02) # inbalance
+    # distribs += [ '2,inbalance,{:.02f}'.format(r) for r in ratios ]
+    # plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
+                             # 2, outdir)
+    # return
     # return
     # plot_real_datasets3d(datasetsdir, realdir)
     # return
     # plot_pca_first_coords(datasetsdir, realdir)
     # plot_2coords(distribs, palettehex, outdir)
+    # return
     # breakpoint()
 
     # plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             # 2, outdir)
     # plot_contours(distribs, outdir)
-    # plot_contours(distribs, outdir, True)
+    plot_contours(distribs, outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, outdir)
     # plot_article_uniform_distribs_scale3(palettehex, outdir)
     # plot_article_uniform_distribs_scale4(palettehex, outdir)
 
     # plot_article_gaussian_distribs_scale(palettehex, outdir)
-    plot_article_quiver(palettehex, outdir)
+    # plot_article_quiver(palettehex, outdir)
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))

@@ -106,6 +106,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths,
         info('realization {:02d}'.format(r))
         data, partsz = utils.generate_data(distribs, samplesz, ndims)
         # utils.plot_data(data, partsz, outdir)
+        # return
 
         for j, linkagemeth in enumerate(linkagemeths): # loop method
             for i, distrib in enumerate(data): # loop distrib
@@ -118,7 +119,7 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths,
                 maxdist = z[-1, 2]
 
                 ret = utils.find_clusters(data[distrib], z, clsize,
-                        minnclusters, outliersratio)
+                                          minnclusters, outliersratio)
                 clustids, avgheight, ouliersdist, outliers = ret
                 features[distrib][linkagemeth][r] = \
                         extract_features(maxdist, ouliersdist, avgheight,
@@ -149,7 +150,13 @@ def find_clusters_batch(distribs, samplesz, ndims, metric, linkagemeths,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ndims', type=int, default=2, help='Dimensionality')
-    parser.add_argument('--samplesz', type=int, default=50, help='Sample size')
+    # pruningparam = 0.02
+    # clrelsize = 0.3 # cluster rel. size
+    parser.add_argument('--pruning', type=float, default=0.02,
+                        help='Pruning parameter')
+    parser.add_argument('--clrelsize', type=float, default=0.3,
+                        help='Cluster relative size')
+    parser.add_argument('--samplesz', type=int, default=500, help='Sample size')
     parser.add_argument('--nrealizations', type=int, default=3, help='Sample size')
     parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
     parser.add_argument('--seed', default=0, type=int)
@@ -167,29 +174,36 @@ def main():
     np.random.seed(args.seed)
 
     linkagemeths = 'single,complete,average,centroid,median,ward'.split(',')
+    # linkagemeths = ['single']
     decays = 'uniform,gaussian,power,exponential'.split(',')
+    # decays = ['gaussian']
     alpha = '4'
     distribs = []
 
-    distribs += [','.join(['1', d]) for d in decays]
-    distribs += [','.join(['2', d, alpha]) for d in decays]
+    # distribs += [','.join(['1', d]) for d in decays]
+    # distribs += [','.join(['2', d, alpha]) for d in decays]
 
-    alphas =  np.arange(2, 7, .5) # overlap
-    distribs += [ '2,overlap,{}'.format(a) for a in alphas ]
+    # alphas =  np.arange(2, 7, .5) # overlap
+    # distribs += [ '2,overlap,{}'.format(a) for a in alphas ]
 
-    ratios = np.arange(.500, .761, 0.02) # inbalance
-    distribs += [ '2,inbalance,{:.02f}'.format(r) for r in ratios ]
+    # ratios = np.arange(.500, .851, 0.02) # imbalance
+    # ratios = np.arange(.500, .701, 0.02) # imbalance
+    # distribs += [ '2,imbalance,{:.02f}'.format(r) for r in ratios ]
+
+    # distribs += ['3,gaussian,4', '4,gaussian,4']
+    distribs += ['3,gaussian,4']
+    # distribs += ['4,gaussian,4']
 
     metric = 'euclidean'
-    pruningparam = 0.02
-    clrelsize = 0.3 # cluster rel. size
+    # pruningparam = 0.02
+    # clrelsize = 0.3 # cluster rel. size
     precthresh = 0.7
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    info('pruningparam:{}'.format(pruningparam))
+    info('pruningparam:{}'.format(args.pruning))
 
     find_clusters_batch(distribs, args.samplesz, args.ndims, metric,
-            linkagemeths, clrelsize, precthresh,
-            args.nrealizations, pruningparam, palettehex, outdir)
+            linkagemeths, args.clrelsize, precthresh,
+            args.nrealizations, args.pruning, palettehex, outdir)
 
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))

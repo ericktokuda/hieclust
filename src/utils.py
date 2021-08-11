@@ -23,8 +23,8 @@ from sklearn import preprocessing
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
-    """P.d.f. of the multivariate normal when the covariance matrix is positive definite.
-    Source: wikipedia"""
+    """P.d.f. of the multivariate normal when the covariance matrix is positive
+    definite. Source: wikipedia"""
     ndims = len(mean)
     B = x - mean
     return (1. / (np.sqrt((2 * np.pi)**ndims * np.linalg.det(cov))) *
@@ -66,14 +66,13 @@ def generate_uniform(samplesz, ndims, mus, rads):
     return get_random_sample(x, ncenters, samplesz)
 
 ##########################################################
-def generate_multivariate_normal(samplesz, ndims, mus, covs=[]):
-    ncenters = len(mus)
+def generate_multivariate_normal(samplesz, ndims, ncenters, covs=[]):
     x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
+    mu0 = np.zeros(ndims)
 
     for i in range(ncenters):
         cov = covs[i, :, :]
-
-        aux = np.random.multivariate_normal(mus[i], cov, size=samplesz)
+        aux = np.random.multivariate_normal(mu0, cov, size=samplesz)
         # aux = get_points_inside_circle(aux, c, rs[i])
         x[i*samplesz: (i+1)*samplesz] = aux[:samplesz]
 
@@ -115,41 +114,12 @@ def generate_power(samplesz, ndims, power, mus, rads, positive=False):
     return get_random_sample(x, ncenters, samplesz)
 
 ##########################################################
-def calculate_alpha(x, partsz):
-    """Print alpha value
-
-    Args:
-    x(np.ndarray): numpy array containing data
-    partsz(np.ndarray): np array containing the partition sizes
-
-    Returns:
-    float: alpha value
-    """
-
-    info(inspect.stack()[0][3] + '()')
-    d1 = x[:partsz[0]]
-    d2 = x[partsz[0]:]
-    k = np.linalg.norm(np.mean(d1, 0))
-    d = np.mean([np.linalg.norm(np.mean(d1, 0)), np.linalg.norm(np.mean(d2, 0))])
-    stdavg = np.mean([np.std(d1), np.std(d2)])
-
-    alpha = 2 * d / stdavg
-    return alpha
-
-##########################################################
-def shift_clusters(x, partsz, alpha):
-    """Shift cluster accordign to
+def shift_clusters2(x, partsz, alpha):
+    """Shift 2 clusters(k=2) accordign to
     alpha = 2*d / std
     where d is the distance between the cluster and the origin
-    Resulting clusters are symmetric wrt the origin
+    Resulting clusters are symmetric wrt the origin """
 
-    Args:
-    x(np.ndarray): numpy array containing data
-    alpha(float): parameter for shifting the clusters
-
-    Returns:
-    np.ndarray: shifted cluters
-    """
     ndims = x.shape[1]
     d1 = x[:partsz[0]]
     d2 = x[partsz[0]:]
@@ -161,92 +131,184 @@ def shift_clusters(x, partsz, alpha):
 
     shifted[:partsz[0]] += (+mu) - np.mean(d1)
     shifted[partsz[0]:] += (-mu) - np.mean(d2)
-    # calculate_alpha(shifted, partsz)
     return shifted
 
 ##########################################################
+def shift_clusters3(data, partsz, alpha, stdavg):
+    """Shift 3 clusters (k=3)"""
+
+    l = alpha * stdavg
+    sq3 = np.sqrt(3) # Coords from an equilateral triangle
+    mus3 = np.array([[0, l * sq3 / 4],
+                     [l / 2, -l * sq3 / 4],
+                     [-l / 2, -l * sq3 / 4]])
+    shifted = data.copy()
+    inds = np.cumsum(partsz)
+    inds = np.insert(inds, 0, 0)
+    for i in range(len(inds) -1):
+        shifted[inds[i]:inds[i+1]] +=  mus3[i, :]
+    return shifted
+
+##########################################################
+def shift_clusters4(data, partsz, alpha, stdavg):
+    """Shift 4 clusters (k=4)"""
+
+    l = alpha * stdavg
+    v = l / 2
+    mus4 = np.array([ [v, v], [v, -v], [-v, -v], [-v, v],])
+    shifted = data.copy()
+
+    inds = np.cumsum(partsz)
+    inds = np.insert(inds, 0, 0)
+    for i in range(len(inds) -1):
+        shifted[inds[i]:inds[i+1]] +=  mus4[i, :]
+
+    return shifted
+
+##########################################################
+def generate_data_k1(data, partsz, samplesz, ndims, distribs):
+    """Generate data for k=1"""
+    info(inspect.stack()[0][3] + '()')
+    mu = np.zeros((1, ndims))
+
+    b = '1,uniform'
+    r = np.array([1])
+    if b in distribs:
+        data[b], partsz[b] = generate_uniform(samplesz, ndims, mu, r)
+
+    b = '1,gaussian'
+    cov = np.array([np.eye(ndims)])*.3
+    if b in distribs:
+        data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 1, cov)
+
+    b = '1,power'
+    if b in distribs:
+        data[b], partsz[b] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1,
+                positive=True)
+
+    b = '1,exponential'
+    if b in distribs:
+        data[b], partsz[b] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
+
+    return data, partsz
+
+##########################################################
+def generate_data_k2(data, partsz, samplesz, ndims, mus2, covs2, distribs):
+    """Generate data for k=2"""
+    info(inspect.stack()[0][3] + '()')
+    rads = np.ones(2) * 1.0
+
+    for alpha in [4,5,6]:
+        b = '2,uniform,' + str(alpha)
+        if b in distribs:
+            data[b], partsz[b] = generate_uniform(samplesz, ndims, mus2, rads)
+            data[b] = shift_clusters2(data[b], partsz[b], alpha)
+
+        b = '2,gaussian,' + str(alpha)
+        if b in distribs:
+            data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 2,
+                                                              covs2)
+            data[b] = shift_clusters2(data[b], partsz[b], alpha)
+
+        b = '2,power,' + str(alpha)
+        if b in distribs:
+            data[b], partsz[b] = generate_power(samplesz, ndims, 2, mus2, rads,
+                    positive=True)
+            data[b] = shift_clusters2(data[b], partsz[b], alpha)
+
+        b = '2,exponential,' + str(alpha)
+        if b in distribs:
+            data[b], partsz[b] = generate_exponential(samplesz, ndims, mus2, rads)
+            data[b] = shift_clusters2(data[b], partsz[b], alpha)
+    return data, partsz
+
+##########################################################
+def generate_data_hdbscan(data, partsz, samplesz, ndims, distribs):
+    """Generate HDBSCAN data"""
+    info(inspect.stack()[0][3] + '()')
+    if '5,hdbscan' in distribs:
+        data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
+    return data, partsz
+
+
+##########################################################
+def generate_data_overlap(data, partsz, samplesz, ndims, mus2, covs2, distribs):
+    """Generate data with overlap for k=2"""
+    info(inspect.stack()[0][3] + '()')
+    for b in distribs: # Data with overlap
+        if not 'overlap' in b: continue
+        alpha = float(b.split(',')[-1])
+        data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 2, covs2)
+        data[b] = shift_clusters2(data[b], partsz[b], alpha)
+    return data, partsz
+
+##########################################################
+def generate_data_inbalance(data, partsz, samplesz, ndims, mus2, covs2, distribs):
+    """Generate data with inbalance for k=2"""
+    info(inspect.stack()[0][3] + '()')
+    alpha = 5 # a bit more separated
+    for b in distribs: # Data with imbalance
+        if not 'imbalance' in b: continue
+        ratio = float(b.split(',')[-1])
+        sz1 = int(ratio * samplesz); sz2 = samplesz - sz1
+        mask = np.zeros(2*samplesz, dtype=bool); mask[:sz1] = 1
+        ldata, lpartsz = generate_multivariate_normal(2*samplesz, ndims, 2, covs2)
+        mask[lpartsz[0]:lpartsz[0]+sz2] = 1
+        partsz[b] = np.array([sz1, sz2])
+        data[b] = shift_clusters2(ldata[mask, :], partsz[b], alpha)
+    return data, partsz
+
+##########################################################
+def generate_data_k3(data, partsz, samplesz, ndims, distribs):
+    """Generate data for k=3"""
+    info(inspect.stack()[0][3] + '()')
+    covs3 = np.array([np.eye(ndims)] * 3)
+    stdavg = 1
+    alpha = 4
+
+    b = '3,gaussian,{}'.format(alpha)
+    if not (b in distribs): return data, partsz
+
+    data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 3, covs3)
+    data[b] = shift_clusters3(data[b], partsz[b], alpha, stdavg)
+    return data, partsz
+
+##########################################################
+def generate_data_k4(data, partsz, samplesz, ndims, distribs):
+    """Generate data for k=3"""
+    info(inspect.stack()[0][3] + '()')
+    covs4 = np.array([np.eye(ndims)] * 4)
+    stdavg = 1
+    alpha = 4
+
+    b = '4,gaussian,{}'.format(alpha)
+    if not (b in distribs): return data, partsz
+
+    data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 4, covs4)
+    data[b] = shift_clusters4(data[b], partsz[b], alpha, stdavg)
+    return data, partsz
+
+##########################################################
 def generate_data(distribs, samplesz, ndims):
-    """Synthetic data
-
-    Args:
-    n(int): size of each sample
-
-    Returns:
-    list of np.ndarray: each element is a nx2 np.ndarray
-    """
-
+    """Synthetic data """
     info(inspect.stack()[0][3] + '()')
 
     data = {}
     partsz = {}
 
-    mu = np.zeros((1, ndims))
+    mus2 = np.ones((2, ndims)); mus2[0, :] *= -1
+    covs2 = np.array([np.eye(ndims)] * 2)
 
-    k = '1,uniform'
-    r = np.array([1])
-    if k in distribs:
-        data[k], partsz[k] = generate_uniform(samplesz, ndims, mu, r)
-
-    k = '1,gaussian'
-    cov = np.array([np.eye(ndims)])*.3
-    if k in distribs:
-        data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mu, cov)
-
-    k = '1,power'
-    if k in distribs:
-        data[k], partsz[k] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1,
-                positive=True)
-
-    k = '1,exponential'
-    if k in distribs:
-        data[k], partsz[k] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
-
-    mus = np.ones((2, ndims))
-    mus[0, :] *= -1
-    rads = np.ones(2) * 1.0
-    covs = np.array([np.eye(ndims)] * 2)
-
-    for alpha in [4,5,6]:
-        k = '2,uniform,' + str(alpha)
-        if k in distribs:
-            data[k], partsz[k] = generate_uniform(samplesz, ndims, mus, rads)
-            data[k] = shift_clusters(data[k], partsz[k], alpha)
-
-        k = '2,gaussian,' + str(alpha)
-        if k in distribs:
-            data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
-            data[k] = shift_clusters(data[k], partsz[k], alpha)
-
-        k = '2,power,' + str(alpha)
-        if k in distribs:
-            data[k], partsz[k] = generate_power(samplesz, ndims, 2, mus, rads,
-                    positive=True)
-            data[k] = shift_clusters(data[k], partsz[k], alpha)
-
-        k = '2,exponential,' + str(alpha)
-        if k in distribs:
-            data[k], partsz[k] = generate_exponential(samplesz, ndims, mus, rads)
-            data[k] = shift_clusters(data[k], partsz[k], alpha)
-
-    # load hdbscan example data
-    # data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
-
-    for k in distribs: # Data with overlap
-        if not 'overlap' in k: continue
-        alpha = float(k.split(',')[-1])
-        data[k], partsz[k] = generate_multivariate_normal(samplesz, ndims, mus, covs)
-        data[k] = shift_clusters(data[k], partsz[k], alpha)
-
-    alpha = 4
-    for k in distribs: # Data with inbalance
-        if not 'inbalance' in k: continue
-        ratio = float(k.split(',')[-1])
-        sz1 = int(ratio * samplesz); sz2 = samplesz - sz1
-        mask = np.zeros(2*samplesz, dtype=bool); mask[:sz1] = 1
-        ldata, lpartsz = generate_multivariate_normal(2*samplesz, ndims, mus, covs)
-        mask[lpartsz[0]:lpartsz[0]+sz2] = 1
-        partsz[k] = np.array([sz1, sz2])
-        data[k] = shift_clusters(ldata[mask, :], partsz[k], alpha)
+    data, partsz = generate_data_k1(data, partsz, samplesz, ndims, distribs)
+    data, partsz = generate_data_k2(data, partsz, samplesz, ndims,
+                                    mus2, covs2, distribs)
+    data, partsz = generate_data_hdbscan(data, partsz, samplesz, ndims, distribs)
+    data, partsz = generate_data_overlap(data, partsz, samplesz, ndims,
+                                         mus2, covs2, distribs)
+    data, partsz = generate_data_inbalance(data, partsz, samplesz, ndims,
+                                           mus2, covs2, distribs)
+    data, partsz = generate_data_k3(data, partsz, samplesz, ndims, distribs)
+    data, partsz = generate_data_k4(data, partsz, samplesz, ndims, distribs)
 
     return data, partsz
 
@@ -257,34 +319,31 @@ def plot_data(data, partsz, outdir):
     axlimfactor = 3
     alpha = .6
 
-    for k in data.keys():
-        ngroups = int(k.split(',')[0])
+    for b in data.keys():
+        ngroups = int(b.split(',')[0])
         axlim = axlimfactor * ngroups
-        a = data[k]; b = partsz[k]
+        a = data[b]; bb = partsz[b]
         plt.close();
         idx = 0
-        for i in range(len(b)):
-            plt.scatter(a[idx:idx+b[i], 0], a[idx:idx+b[i], 1],
-                        alpha=alpha, label='Group{}'.format(i), linewidths=0)
-            idx += b[i]
-        # info('k:{}, b:{}, {}, {}'.format(k, b, np.mean(a[:b[0], :], axis=0),
-                                         # np.mean(a[b[0]:, :], axis=0),))
-        plt.xlim(-axlim, +axlim); plt.ylim(-axlim, +axlim)
-        plt.legend()
-        plt.savefig(pjoin(outdir, '{}.png'.format(k)))
+        W = 500; H = 500
+        fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
+        for i in range(len(bb)):
+            ax.scatter(a[idx:idx+bb[i], 0], a[idx:idx+bb[i], 1],
+                        alpha=alpha, label='Group{}'.format(i), linewidths=0,
+                       # c=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], 
+                       s=10)
+            idx += bb[i]
+
+        ax.set_xlim(-axlim, +axlim); plt.ylim(-axlim, +axlim)
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        plt.tight_layout()
+        # plt.legend()
+        plt.savefig(pjoin(outdir, '{}.png'.format(b)))
 
 ##########################################################
 def get_descendants(z, nleaves, clustid, itself=True):
-    """Get all the descendants from a given cluster id
-
-    Args:
-    z(np.ndarray): linkage matrix
-    nleaves(int): number of leaves
-    clustid(int): cluster id
-
-    Returns:
-    np.ndarray, np.ndarray: (leaves, links)
-    """
+    """Get all the descendants from a given cluster id"""
 
     clustids = np.array([clustid]) if itself else np.array([])
     if clustid < nleaves: return clustids
@@ -296,15 +355,7 @@ def get_descendants(z, nleaves, clustid, itself=True):
 
 ##########################################################
 def get_leaves(z, clustid):
-    """Get leaves below clustid
-
-    Args:
-    z(np.ndarray): linkage matrix
-    clustid(int): cluster id
-
-    Returns:
-    np.ndarray: leaves
-    """
+    """Get leaves below clustid """
     # info(inspect.stack()[0][3] + '()')
     n = z.shape[0] + 1
     desc = get_descendants(z, n, clustid, itself=True)
@@ -312,16 +363,7 @@ def get_leaves(z, clustid):
 
 ##########################################################
 def is_child(parent, child, linkageret):
-    """Check if @child is a direct child of @parent
-
-    Args:
-    parent(int): parent id
-    child(int): child id
-    linkageret(np.ndarray): linkage matrix
-
-    Returns:
-    bool: whether it is child or not
-    """
+    """Check if @child is a direct child of @parent """
 
     nleaves = linkageret.shape[0] + 1
     links = get_descendants(linkageret, nleaves, parent)
@@ -377,16 +419,7 @@ def get_outermost_points(linkageret, outliersratio, hfloor):
 
 ##########################################################
 def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
-    """Compute relevance according to Luc's method
-
-    Args:
-    data(np.ndarray): data with columns as dimensions and rows as points
-    linkageret(np.ndarray): linkage matrix
-
-    Returns:
-    np.ndarray: array of cluster ids
-    float: relevance of this operation
-    """
+    """Compute relevance according to Luciano's idea"""
 
     n = data.shape[0]
     nclusters = n + linkageret.shape[0]
@@ -395,7 +428,7 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     counts = linkageret[:, 3]
 
     clustids = []
-    for clustcount in range(clsize, n): # Find clustesr with increasing size
+    for clustcount in range(clsize, n): # Find clusters with increasing size
         if len(clustids) >= minnclusters: break
         # Get the links with the exact size requested
         joininds = np.where(linkageret[:, 3] == clustcount)[0]
@@ -412,7 +445,10 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
             if newclust:
                 clustids.append(clid)
 
-    for i in range(len(clustids)): # Get the closest size w.r.t. the requested
+    breakpoint()
+    
+    # Get the cluster with size closest to the requested
+    for i in range(len(clustids)):
         clid = clustids[i]
         diff_orig = np.abs(len(get_leaves(linkageret, clid)) - clsize)
         for j in range(2):
@@ -429,7 +465,6 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
     if len(clustids) == 1:
         l = linkageret[clustids[0] - n, 2]
         return np.array(clustids), l, L, outliers
-        
 
     m = np.max(clustids)
     parent = 2 * n - 1
@@ -455,12 +490,12 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
 ##########################################################
 def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
     n = ax.shape[0]*ax.shape[1]
-    for k in range(n):
+    for b in range(n):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
         ax[i, j].set_title('')
 
-    for k in range(n):
+    for b in range(n):
         i = k // ax.shape[1]
         j = k  % ax.shape[1]
         coordsys = fig.dpi_scale_trans.inverted()
@@ -495,7 +530,7 @@ def plot_contours(labels, outdir, icons=False):
     mu = np.array([[0, 0]])
     r = np.array([.9])
     plot_contour_uniform(mu, r, s, ax[0, 0], cmap, linewidth) # 1 uniform
- 
+
     mus = np.zeros((1, ndims))
     covs = np.array([np.eye(ndims) * 0.15]) # 1 gaussian
     plot_contour_gaussian(ndims, mus, covs, s, ax[0, 1], cmap, linewidth)
@@ -583,12 +618,12 @@ def compute_precision(clustids, partsz, z):
         tps.append(np.sum( (leaves >= idx) & (leaves < nextidx)))
         fps.append(len(leaves) - tps[-1])
         idx = nextidx
-    
+
     return np.sum(tps) / (np.sum(tps) + np.sum(fps))
 
 ##########################################################
 def accumulate_relevances(rels, distribs, linkagemeths):
-    accrel = {k: {} for k in distribs} # accumulated relevances
+    accrel = {k: {} for b in distribs} # accumulated relevances
 
     for i, distrib in enumerate(distribs):
         for linkagemeth in linkagemeths:
@@ -612,7 +647,7 @@ def average_relevances(rels, distribs, linkagemeths):
 
 ##########################################################
 def compute_gtruth_vectors(distribs, nrealizations):
-    """Compute the ground-truth given by Luc method
+    """Compute the ground-truth as proposed by Luciano
 
     Args:
     data(dict): dict with key 'numclust,method,param' and list as values
@@ -623,7 +658,7 @@ def compute_gtruth_vectors(distribs, nrealizations):
     gtruths = {}
     for i, k in enumerate(distribs):
         nclusters = int(k.split(',')[0])
-        gtruths[k] = np.zeros(2)
+        gtruths[k] = np.zeros(nclusters)
         gtruths[k][nclusters-1] = 1.0
 
     return gtruths
