@@ -1,0 +1,13 @@
+{
+  "linkagemeths": "single",
+  "datadim": 2,
+  "samplesz": 100,
+  "distribs": "1,uniform",
+  "clrelsize": 0.3,
+  "pruningparam": 0.02,
+  "precthresh": 0.7,
+  "metric": "euclidean",
+  "nrealizations": 3,
+  "seed": 0,
+  "outdir": "/tmp/out/"
+}

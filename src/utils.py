@@ -418,10 +418,11 @@ def get_outermost_points(linkageret, outliersratio, hfloor):
         return [], linkageret[-1, 2]
 
 ##########################################################
-def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
-    """Compute relevance according to Luciano's idea"""
+def get_clusters(linkageret, clsize, minnclusters, outliersratio):
+    """Try to find @minnclusters clusters of minimum size @clsize considering the
+    linkage matrix @linkageret"""
 
-    n = data.shape[0]
+    n = linkageret.shape[0] + 1
     nclusters = n + linkageret.shape[0]
     lastclustid = nclusters - 1
 
@@ -445,9 +446,11 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
             if newclust:
                 clustids.append(clid)
 
-    breakpoint()
-    
+    # print(len(clustids))
+    # breakpoint()
+
     # Get the cluster with size closest to the requested
+    # (eventually remove the last link)
     for i in range(len(clustids)):
         clid = clustids[i]
         diff_orig = np.abs(len(get_leaves(linkageret, clid)) - clsize)
@@ -478,14 +481,28 @@ def find_clusters(data, linkageret, clsize, minnclusters, outliersratio):
             parent = i
             break
 
-    l = linkageret[parent - n, 2]
-    avgheight = 0
-    for cl in clustids:
-        avgheight += linkageret[cl - n, 2]
-    avgheight /= len(clustids) # average of the heights
+    rel = calculate_relevance(linkageret, clustids)
 
     clustids = np.array(sorted(clustids)[:2])
-    return clustids, avgheight, L, outliers
+    return clustids, rel, L, outliers
+
+
+##########################################################
+def find_clusters(distrib, z, clsize, k, outliersratio):
+    try:
+        z = linkage(data[distrib], linkagemeth, metric)
+    except exception as e:
+        filename = 'error_{}_{}.npy'.format(distrib, linkagemeth)
+        np.save(pjoin(outdir, filename), data[distrib])
+        raise(e)
+
+    k = int(distrib.split(',')[0])
+    clustids, rel, ouliersdist, outliers = get_clusters(z, clsize, k, outliersratio)
+    feats = extract_features(ouliersdist, rel, len(outliers), clustids, z)
+
+    # TODO: MOVE COMPTUE MAXPRECISION and EXTRACT_FEATURES to  batch.py
+    prec = utils.compute_max_precision(clustids, partsz[distrib], z)
+    return len(clustids), rel, feats, prec
 
 ##########################################################
 def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
@@ -592,8 +609,13 @@ def hex2rgb(hexcolours, normalized=False, alpha=None):
     return rgbcolours
 
 ##########################################################
-def calculate_relevance(avgheight, outliersdist, maxdist):
-    return 1 - (avgheight / maxdist)
+def calculate_relevance(linkageret, clustids):
+    maxdist = linkageret[-1, 2]
+    n = linkageret.shape[0] + 1
+    acc = 0
+    for cl in clustids:
+        acc += linkageret[cl - n, 2]
+    return acc / len(clustids) / maxdist
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):
