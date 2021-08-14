@@ -3,9 +3,7 @@
 """
 
 import argparse
-import logging
 from os.path import join as pjoin
-from logging import debug, info
 import os
 import inspect
 from math import acos
@@ -20,7 +18,10 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import brentq
 import pandas as pd
 from sklearn import preprocessing
+from myutils import info
 
+##########################################################
+NOTFOUND = -1
 ##########################################################
 def multivariate_normal(x, mean, cov):
     """P.d.f. of the multivariate normal when the covariance matrix is positive
@@ -362,6 +363,21 @@ def get_leaves(z, clustid):
     return desc[desc < n]
 
 ##########################################################
+def get_nleaves(z, clustid):
+    """Get leaves below clustid """
+    # info(inspect.stack()[0][3] + '()')
+    return len(get_leaves(z, clustid))
+
+##########################################################
+def get_leaves_all(z, clustids):
+    """Get leaves below clustid """
+    # info(inspect.stack()[0][3] + '()')
+    leaves = []
+    for clid in clustids:
+        leaves.extend(get_leaves(z, clid))
+    return leaves
+
+##########################################################
 def is_child(parent, child, linkageret):
     """Check if @child is a direct child of @parent """
 
@@ -372,25 +388,25 @@ def is_child(parent, child, linkageret):
     # else: return False
 
 ##########################################################
-def get_parent(child, linkageret):
+def get_parent(linkageret, child):
     zind = np.where(linkageret[:, 0:2] == child)[0]
     if len(zind) == 0:
         return None
     else:
-        return zind[0] + len(linkageret) +1
+        return zind[0] + len(linkageret) + 1
 
 ##########################################################
 def get_ancestors(child, linkageret):
     ancestors = []
     while True:
-        ancestor = get_parent(child, linkageret)
+        ancestor = get_parent(linkageret, child)
         if ancestor == None: break
         ancestors.append(ancestor)
         child = ancestor
     return ancestors
 
 ##########################################################
-def get_outermost_points(linkageret, outliersratio, hfloor):
+def identify_outliers(linkageret, outliersratio, hfloor):
     # TODO: remove intersection of outliers and cluster links
     if outliersratio > 0:
         outliers = []
@@ -418,91 +434,79 @@ def get_outermost_points(linkageret, outliersratio, hfloor):
         return [], linkageret[-1, 2]
 
 ##########################################################
-def get_clusters(linkageret, clsize, minnclusters, outliersratio):
-    """Try to find @minnclusters clusters of minimum size @clsize considering the
-    linkage matrix @linkageret"""
+def get_cluster(clsize, clustids, z):
+    """Try to find a cluster of minimum size @clsize in the data given by @z"""
+    n = z.shape[0] + 1
+    allleaves = set(list(range(n)))
+    visitted = set(get_leaves_all(z, clustids))
+    nonvisitted = allleaves.difference(visitted)
 
-    n = linkageret.shape[0] + 1
-    nclusters = n + linkageret.shape[0]
-    lastclustid = nclusters - 1
+    info(nonvisitted)
+    if clsize > (len(allleaves) - len(visitted)):
+        return NOTFOUND
 
-    counts = linkageret[:, 3]
+    for leaf in nonvisitted:
+        u = leaf
+        while(get_nleaves(z, u) < clsize):
+            uleaves = set(get_leaves(z, u))
+            if len(uleaves.intersection(visitted)) > 0: break
+            u = get_parent(z, u)
 
-    clustids = []
-    for clustcount in range(clsize, n): # Find clusters with increasing size
-        if len(clustids) >= minnclusters: break
-        # Get the links with the exact size requested
-        joininds = np.where(linkageret[:, 3] == clustcount)[0]
-
-        for joinidx in joininds:
-            clid = joinidx + n
-
-            newclust = True
-            for other in clustids:
-                if is_child(clid, other, linkageret):
-                    newclust = False
-                    break
-
-            if newclust:
-                clustids.append(clid)
-
-    # print(len(clustids))
-    # breakpoint()
-
-    # Get the cluster with size closest to the requested
-    # (eventually remove the last link)
-    for i in range(len(clustids)):
-        clid = clustids[i]
-        diff_orig = np.abs(len(get_leaves(linkageret, clid)) - clsize)
-        for j in range(2):
-            aux = len(get_leaves(linkageret, linkageret[clid-n, j]))
-            if np.abs(aux - clsize) < diff_orig:
-                clustids[i] = int(linkageret[clid-n, j])
-                break
-
-    hfloor = np.max(clustids) - n # highest link
-    hfloor = linkageret[hfloor, 2]
-
-    outliers, L = get_outermost_points(linkageret, outliersratio, hfloor)
-
-    if len(clustids) == 1:
-        l = linkageret[clustids[0] - n, 2]
-        return np.array(clustids), l, L, outliers
-
-    m = np.max(clustids)
-    parent = 2 * n - 1
-    for i in range(m + 1, 2 * n - 1): # Find the parent id
-        allchildrem = True
-        for cl in clustids:
-            if not is_child(i, cl, linkageret):
-                allchildrem = False
-                break
-        if allchildrem:
-            parent = i
-            break
-
-    rel = calculate_relevance(linkageret, clustids)
-
-    clustids = np.array(sorted(clustids)[:2])
-    return clustids, rel, L, outliers
-
+        inters = set(get_leaves(z, u)).intersection(visitted)
+        if get_nleaves(z, u) >= clsize and len(inters) == 0: return u
+    return NOTFOUND
 
 ##########################################################
-def find_clusters(distrib, z, clsize, k, outliersratio):
-    try:
-        z = linkage(data[distrib], linkagemeth, metric)
-    except exception as e:
-        filename = 'error_{}_{}.npy'.format(distrib, linkagemeth)
-        np.save(pjoin(outdir, filename), data[distrib])
-        raise(e)
+def get_last_valid_link(clid, clsize, z):
+    # Get the cluster with size closest to the requested
+    # (eventually remove the last link)
+    n = z.shape[0] + 1
+    diff0 = np.abs(get_nleaves(z, clid) - clsize)
+    child1, child2 = int(z[clid -n, 0]), int(z[clid -n, 1])
+    diff1 = np.abs(get_nleaves(z, child1) - clsize)
+    diff2 = np.abs(get_nleaves(z, child2) - clsize)
+    ind = np.argmax([diff0, diff1, diff2])
+    if ind == 0: return clid
+    elif ind == 1: return child1
+    elif ind == 2: return child2
 
-    k = int(distrib.split(',')[0])
-    clustids, rel, ouliersdist, outliers = get_clusters(z, clsize, k, outliersratio)
-    feats = extract_features(ouliersdist, rel, len(outliers), clustids, z)
+##########################################################
+def get_highest_cluster(z, clustids):
+    n = z.shape[0] + 1
+    maxid = -1
+    maxh = -1
+    for clid in clustids:
+        h = z[clid - n, 2]
+        if h > maxh: maxid = clid
+    return maxid
 
-    # TODO: MOVE COMPTUE MAXPRECISION and EXTRACT_FEATURES to  batch.py
-    prec = utils.compute_max_precision(clustids, partsz[distrib], z)
-    return len(clustids), rel, feats, prec
+##########################################################
+def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
+    """Return npred, rel, feats, prec"""
+    z = linkage(data, linkagemeth, metric)
+    n = z.shape[0] + 1
+
+    for i in range(k, 0, -1): # Try to find a decreasing number of clusters
+        clustids = []
+        found = False
+
+        while(len(clustids)) < i:
+            u = get_cluster(clsize, clustids, z)
+            if u == NOTFOUND: break
+            v = get_last_valid_link(u, clsize, z)
+            clustids.append(v)
+
+        if len(clustids) == i:
+            found = True
+            break
+
+    if not found: return [], [], [] # In case no clusters were found
+
+    # Outliers
+    hfloor = get_highest_cluster(z, clustids)
+    outliers, L = identify_outliers(z, outliersratio, hfloor)
+
+    return z, clustids, outliers
 
 ##########################################################
 def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
@@ -609,12 +613,12 @@ def hex2rgb(hexcolours, normalized=False, alpha=None):
     return rgbcolours
 
 ##########################################################
-def calculate_relevance(linkageret, clustids):
-    maxdist = linkageret[-1, 2]
-    n = linkageret.shape[0] + 1
+def calculate_relevance(z, clustids):
+    maxdist = z[-1, 2]
+    n = z.shape[0] + 1
     acc = 0
     for cl in clustids:
-        acc += linkageret[cl - n, 2]
+        acc += z[cl - n, 2]
     return acc / len(clustids) / maxdist
 
 ##########################################################

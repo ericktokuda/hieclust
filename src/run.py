@@ -2,7 +2,7 @@
 """Experimental study of traditional hierarchical clustering methods."""
 
 from os.path import join as pjoin
-import os, sys, time, argparse, inspect
+import os, sys, time, random, argparse, inspect
 import datetime, json, shutil
 import numpy as np
 
@@ -10,7 +10,7 @@ import scipy
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import cdist
 import pandas as pd
-import utils
+import utils as ut
 from myutils import info, create_readme
 
 import matplotlib; matplotlib.use('Agg')
@@ -22,7 +22,7 @@ def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
     clsizes = [0] * 2
     for i in [0, 1]:
         if len(clustids) > i:
-            clsizes[i] = len(utils.get_leaves(z, clustids[i]))
+            clsizes[i] = len(ut.get_leaves(z, clustids[i]))
 
     features = np.array([maxdist, ouliersdist, avgheight, noutliers] + clsizes)
     features = np.concatenate((features, z[:, 2]))
@@ -74,65 +74,73 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
 
 ##########################################################
 def run_all_experiments(linkagemeths, datadim, samplesz, distribs, clrelsize,
-                        outliersratio, precthresh, metric, nrealizations,
-                        seed, outdir):
+                        c, precthresh, metric, nrealizations, outdir):
     info(inspect.stack()[0][3] + '()')
+
+    errdir = pjoin(outdir, 'errors')
+    os.makedirs(errdir, exist_ok=True)
 
     clsize = int(clrelsize * samplesz)
     nfeats = 6 + (samplesz - 1)
+    errors = []
+
+    distribs = sorted(distribs); linkagemeths = sorted(linkagemeths)
+    ndistribs, nlinkagemeths = len(distribs), len(linkagemeths)
 
     # Initialize variables
-    rels = {}; methprec = {}; nimprec = {}; features = {}
+    # dinds = {k: v for v, k in enumerate(distribs)}
+    # dkeys = dict(enumerate(distribs))
+    # linds = {k: v for v, k in enumerate(linkagemeths)}
+    # lkeys = dict(enumerate(linkagemeths))
+
+    nclu = np.zeros((ndistribs, nlinkagemeths, nrealizations), dtype=int)
+    rels = np.zeros((ndistribs, nlinkagemeths, nrealizations), dtype=float)
+
+    feats = {}
     for distrib in distribs:
-        rels[distrib] = {}; methprec[distrib] = {};
-        nimprec[distrib] = {}; features[distrib] = {}
+        feats[distrib] = {}
         for l in linkagemeths:
-            rels[distrib][l] = [[], []] # Relevances
-            methprec[distrib][l] = [] # Precision
-            nimprec[distrib][l] = 0 # Number of cases below precthresh
-            features[distrib][l] = np.zeros((nrealizations, nfeats))
+            feats[distrib][l] = np.zeros((nrealizations, nfeats))
 
     for r in range(nrealizations): # Loop-realization
         info('Realization {:02d}'.format(r))
-        data, partsz = utils.generate_data(distribs, samplesz, datadim)
-        # utils.plot_data(data, partsz, outdir); return
+        data, partsz = ut.generate_data(distribs, samplesz, datadim)
+        # ut.plot_data(data, partsz, outdir); return
 
         for j, linkagemeth in enumerate(linkagemeths): # Loop-method
             for i, distrib in enumerate(data): # Loop-distrib
-                npred, rel, feats, prec = \
-                    utils.find_clusters(distrib, z, clsize, k, outliersratio)
+                k = int(distrib.split(',')[0]) # Queried number of clusters
+                d = data[distrib]
+
                 # try:
-                    # z = linkage(data[distrib], linkagemeth, metric)
-                # except exception as e:
-                    # filename = 'error_{}_{}.npy'.format(distrib, linkagemeth)
-                    # np.save(pjoin(outdir, filename), data[distrib])
-                    # raise(e)
+                    # z, clustids, outliers = ut.find_clusters(d, k, clsize, c)
+                # except Exception as e:
+                    # suff = '{};{};{}'.format(distrib, linkagemeth, r)
+                    # np.save(pjoin(errdir, suff + '.npy'), d)
+                    # errors.append(suff)
+                    # continue
 
-                # k = int(distrib.split(',')[0])
-                # clustids, rel, ouliersdist, outliers = \
-                    # utils.find_clusters(z, clsize, k, outliersratio)
-                # features[distrib][linkagemeth][r] = \
-                    # extract_features(ouliersdist, rel,
-                                     # len(outliers), clustids, z)
+                z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
+                                                         metric, clsize, c)
+                m = len(clids)
+                if m == 0: continue #TODO: DEFINE WHAT TO when errors
 
-                # prec = utils.compute_max_precision(clustids, partsz[distrib], z)
-                # ngtruth = int(distrib.split(',')[0])
-                # npred = len(clustids)
+                nclu[i][j][r] = m
+                rels[i][j][r] = ut.calculate_relevance(z, clids)
 
-                # if ngtruth == npred and prec < precthresh: # prec limiarization
-                    # npred = (npred % 2) + 1
-                    # nimprec[distrib][linkagemeth] += 1
+                # prec = ut.compute_max_precision(clids, partsz[distrib], z)
+                features = extract_features(c, rels[i][j][r], len(outliers), clids, z)
 
-                rels[distrib][linkagemeth][npred-1].append(rel)
-                features[distrib][linkagemeth][r] = feats
+                feats[distrib][linkagemeth][r] = features
                 # TODO: What to do do when precision below precthresh???
                 # nimprec[distrib][linkagemeth] += nimprec
 
-    avgrel = utils.average_relevances(rels, distribs, linkagemeths)
+    breakpoint()
+    avgrel = ut.average_relevances(rels, distribs, linkagemeths)
     filename = pjoin(outdir, 'nimprec.csv')
     pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
 
-    gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
+    gtruths = ut.compute_gtruth_vectors(distribs, nrealizations)
     diffnorms, winners = compute_rel_to_gtruth_difference(
             avgrel, gtruths, distribs, linkagemeths, nrealizations)
 
@@ -154,10 +162,11 @@ if __name__ == "__main__":
     os.makedirs(c['outdir'], exist_ok=True)
     readmepath = create_readme(sys.argv, c['outdir'])
     shutil.copy(args.config, c['outdir'])
+    np.random.seed(c['seed']); random.seed(c['seed'])
 
     run_all_experiments(c['linkagemeths'].split('|'), c['datadim'], c['samplesz'],
          c['distribs'].split('|'), c['clrelsize'], c['pruningparam'],
-         c['precthresh'], c['metric'], c['nrealizations'], c['seed'],
+         c['precthresh'], c['metric'], c['nrealizations'],
          c['outdir'])
 
     info('Elapsed time:{:.02f}s'.format(time.time()-t0))
