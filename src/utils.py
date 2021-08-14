@@ -169,7 +169,6 @@ def shift_clusters4(data, partsz, alpha, stdavg):
 ##########################################################
 def generate_data_k1(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=1"""
-    info(inspect.stack()[0][3] + '()')
     mu = np.zeros((1, ndims))
 
     b = '1,uniform'
@@ -196,7 +195,6 @@ def generate_data_k1(data, partsz, samplesz, ndims, distribs):
 ##########################################################
 def generate_data_k2(data, partsz, samplesz, ndims, mus2, covs2, distribs):
     """Generate data for k=2"""
-    info(inspect.stack()[0][3] + '()')
     rads = np.ones(2) * 1.0
 
     for alpha in [4,5,6]:
@@ -226,7 +224,6 @@ def generate_data_k2(data, partsz, samplesz, ndims, mus2, covs2, distribs):
 ##########################################################
 def generate_data_hdbscan(data, partsz, samplesz, ndims, distribs):
     """Generate HDBSCAN data"""
-    info(inspect.stack()[0][3] + '()')
     if '5,hdbscan' in distribs:
         data['5,hdbscan'] = np.load(open('/tmp/clusterable_data.npy', 'rb'))
     return data, partsz
@@ -235,7 +232,6 @@ def generate_data_hdbscan(data, partsz, samplesz, ndims, distribs):
 ##########################################################
 def generate_data_overlap(data, partsz, samplesz, ndims, mus2, covs2, distribs):
     """Generate data with overlap for k=2"""
-    info(inspect.stack()[0][3] + '()')
     for b in distribs: # Data with overlap
         if not 'overlap' in b: continue
         alpha = float(b.split(',')[-1])
@@ -246,7 +242,6 @@ def generate_data_overlap(data, partsz, samplesz, ndims, mus2, covs2, distribs):
 ##########################################################
 def generate_data_inbalance(data, partsz, samplesz, ndims, mus2, covs2, distribs):
     """Generate data with inbalance for k=2"""
-    info(inspect.stack()[0][3] + '()')
     alpha = 5 # a bit more separated
     for b in distribs: # Data with imbalance
         if not 'imbalance' in b: continue
@@ -262,7 +257,6 @@ def generate_data_inbalance(data, partsz, samplesz, ndims, mus2, covs2, distribs
 ##########################################################
 def generate_data_k3(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=3"""
-    info(inspect.stack()[0][3] + '()')
     covs3 = np.array([np.eye(ndims)] * 3)
     stdavg = 1
     alpha = 4
@@ -277,7 +271,6 @@ def generate_data_k3(data, partsz, samplesz, ndims, distribs):
 ##########################################################
 def generate_data_k4(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=3"""
-    info(inspect.stack()[0][3] + '()')
     covs4 = np.array([np.eye(ndims)] * 4)
     stdavg = 1
     alpha = 4
@@ -357,7 +350,6 @@ def get_descendants(z, nleaves, clustid, itself=True):
 ##########################################################
 def get_leaves(z, clustid):
     """Get leaves below clustid """
-    # info(inspect.stack()[0][3] + '()')
     n = z.shape[0] + 1
     desc = get_descendants(z, n, clustid, itself=True)
     return desc[desc < n]
@@ -365,13 +357,11 @@ def get_leaves(z, clustid):
 ##########################################################
 def get_nleaves(z, clustid):
     """Get leaves below clustid """
-    # info(inspect.stack()[0][3] + '()')
     return len(get_leaves(z, clustid))
 
 ##########################################################
 def get_leaves_all(z, clustids):
     """Get leaves below clustid """
-    # info(inspect.stack()[0][3] + '()')
     leaves = []
     for clid in clustids:
         leaves.extend(get_leaves(z, clid))
@@ -441,9 +431,7 @@ def get_cluster(clsize, clustids, z):
     visitted = set(get_leaves_all(z, clustids))
     nonvisitted = allleaves.difference(visitted)
 
-    info(nonvisitted)
-    if clsize > (len(allleaves) - len(visitted)):
-        return NOTFOUND
+    if clsize > (len(allleaves) - len(visitted)): return NOTFOUND
 
     for leaf in nonvisitted:
         u = leaf
@@ -472,6 +460,7 @@ def get_last_valid_link(clid, clsize, z):
 
 ##########################################################
 def get_highest_cluster(z, clustids):
+    """Get the id of the cluster in @clustids with highest height."""
     n = z.shape[0] + 1
     maxid = -1
     maxh = -1
@@ -500,10 +489,9 @@ def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
             found = True
             break
 
-    if not found: return [], [], [] # In case no clusters were found
+    if not found: return [], [], [] # In case no cluster is found
 
-    # Outliers
-    hfloor = get_highest_cluster(z, clustids)
+    hfloor = get_highest_cluster(z, clustids) # The maximum the outliers can descend
     outliers, L = identify_outliers(z, outliersratio, hfloor)
 
     return z, clustids, outliers

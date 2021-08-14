@@ -16,6 +16,10 @@ from myutils import info, create_readme
 import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
 
+
+##########################################################
+MAXK = 5
+
 ##########################################################
 def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
     maxdist = z[-1, 2]
@@ -73,7 +77,7 @@ def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, out
     fh.close()
 
 ##########################################################
-def run_all_experiments(linkagemeths, datadim, samplesz, distribs, clrelsize,
+def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
                         c, precthresh, metric, nrealizations, outdir):
     info(inspect.stack()[0][3] + '()')
 
@@ -109,7 +113,6 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, clrelsize,
 
         for j, linkagemeth in enumerate(linkagemeths): # Loop-method
             for i, distrib in enumerate(data): # Loop-distrib
-                k = int(distrib.split(',')[0]) # Queried number of clusters
                 d = data[distrib]
 
                 # try:
@@ -165,7 +168,7 @@ if __name__ == "__main__":
     np.random.seed(c['seed']); random.seed(c['seed'])
 
     run_all_experiments(c['linkagemeths'].split('|'), c['datadim'], c['samplesz'],
-         c['distribs'].split('|'), c['clrelsize'], c['pruningparam'],
+         c['distribs'].split('|'), c['maxnclu'], c['clrelsize'], c['pruningparam'],
          c['precthresh'], c['metric'], c['nrealizations'],
          c['outdir'])
 

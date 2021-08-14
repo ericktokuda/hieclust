@@ -2,12 +2,13 @@
   "linkagemeths": "single",
   "datadim": 2,
   "samplesz": 100,
-  "distribs": "2,uniform,4",
+  "distribs": "2,gaussian,4",
+  "maxnclu": 5,
   "clrelsize": 0.3,
   "pruningparam": 0.02,
   "precthresh": 0.7,
   "metric": "euclidean",
-  "nrealizations": 1,
+  "nrealizations": 10,
   "seed": 2,
   "outdir": "/tmp/out/"
 }
