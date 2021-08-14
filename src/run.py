@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     os.makedirs(c['outdir'], exist_ok=True)
     readmepath = create_readme(sys.argv, c['outdir'])
-    shutil.copy(args.config, c['outdir'])
+    shutil.copy(args.config, pjoin(c['outdir'], 'config.json'))
     np.random.seed(c['seed']); random.seed(c['seed'])
 
     run_all_experiments(c['linkagemeths'].split('|'), c['datadim'], c['samplesz'],
