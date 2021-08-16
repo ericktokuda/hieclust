@@ -1,0 +1,14 @@
+{
+  "linkagemeths": "single|ward",
+  "datadim": 2,
+  "samplesz": 50,
+  "distribs": "3,gaussian,4|4,gaussian,4",
+  "maxnclu": 4,
+  "clrelsize": 0.4,
+  "pruningparam": 0.02,
+  "precthresh": 0.7,
+  "metric": "euclidean",
+  "nrealizations": 3,
+  "seed": 0,
+  "outdir": "/tmp/out/"
+}
