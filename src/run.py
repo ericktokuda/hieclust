@@ -16,7 +16,6 @@ from myutils import info, create_readme
 import matplotlib; matplotlib.use('Agg')
 from matplotlib import pyplot as plt; plt.style.use('ggplot')
 
-
 ##########################################################
 MAXK = 5
 
@@ -33,34 +32,40 @@ def extract_features(ouliersdist, avgheight, noutliers, clustids, z):
     return features
 
 ##########################################################
-def compute_rel_to_gtruth_difference(accrel, gtruths, distribs, linkagemeths,
-        nrealizations):
-    diff = {} # difference to the ground-truth
-    diffnorms = {}
-    for k in distribs:
-        diff[k] = dict((el, np.zeros(2)) for el in linkagemeths)
-        diffnorms[k] = {}
-
-    for i, distrib in enumerate(distribs):
-        for j, linkagemeth in enumerate(linkagemeths):
-            diff[distrib][linkagemeth] = gtruths[distrib] - accrel[distrib][linkagemeth]
-            diffnorms[distrib][linkagemeth] = np.linalg.norm(diff[distrib][linkagemeth])
-
-    winners = {}
-    for d in distribs:
-        minvalue = 1000
-        for l in linkagemeths:
-            if diffnorms[d][l] < minvalue:
-                winners[d] = l
-                minvalue = diffnorms[d][l]
-    return diffnorms, winners
+def define_pred_vectors(rels, nclu, distribs, maxnclu):
+    sz1, sz2, sz3 = rels.shape
+    vpred = np.zeros((sz1, sz2, maxnclu))
+    for i in range(sz1):
+        for j in range(sz2):
+            for k in range(maxnclu):
+                inds = np.where(nclu[i, j, :] == k)
+                r = rels[i, j, :][inds]
+                if len(r) == 0: continue
+                vpred[i, j, k] = np.sum(r)
+    return vpred
 
 ##########################################################
-def export_results(diffnorms, rels, features, distribs, linkagemeths, ndims, outdir):
-    df = pd.DataFrame.from_dict(diffnorms, orient='index')
-    df['dim'] = pd.Series([ndims for x in range(len(df.index))], index=df.index)
-    df.to_csv(pjoin(outdir, 'results.csv'), sep='|', index_label='distrib')
+def validate_vpred(vpred, gtruths):
+    sz1, sz2, sz3 = vpred.shape
+    diffnorms = np.zeros((sz1, sz2), dtype=float) # (distribs, linkagemeths)
+    for i in range(sz1):
+        for j in range(sz2):
+            diffnorms[i, j] = np.linalg.norm(vpred[i, j, :] - gtruths[i, :])
+    return diffnorms
 
+##########################################################
+def export_results(diffnorms, rels, distribs, linkagemeths, outdir):
+    data = []
+    for j, l in enumerate(linkagemeths):
+        data.append([l] + diffnorms[:, j].tolist())
+
+    cols = ['linkagemeth'] + distribs
+    fpath = pjoin(outdir, 'results.csv')
+    pd.DataFrame(data, columns=cols).to_csv(fpath, sep='|', index=False)
+    return
+
+##########################################################
+def export_features(diffnorms, rels, distribs, linkagemeths, outdir):
     nrealizations, nfeats = features[distribs[0]][linkagemeths[0]].shape
     df = pd.DataFrame.from_dict(features, orient='index')
 
@@ -91,12 +96,6 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     distribs = sorted(distribs); linkagemeths = sorted(linkagemeths)
     ndistribs, nlinkagemeths = len(distribs), len(linkagemeths)
 
-    # Initialize variables
-    # dinds = {k: v for v, k in enumerate(distribs)}
-    # dkeys = dict(enumerate(distribs))
-    # linds = {k: v for v, k in enumerate(linkagemeths)}
-    # lkeys = dict(enumerate(linkagemeths))
-
     nclu = np.zeros((ndistribs, nlinkagemeths, nrealizations), dtype=int)
     rels = np.zeros((ndistribs, nlinkagemeths, nrealizations), dtype=float)
 
@@ -125,30 +124,23 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
 
                 z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
                                                          metric, clsize, c)
-                m = len(clids)
-                if m == 0: continue #TODO: DEFINE WHAT TO when errors
 
-                nclu[i][j][r] = m
+                if len(clids) == 0: continue #TODO: DEFINE WHAT TO when errors
+
+                nclu[i][j][r] = len(clids)
                 rels[i][j][r] = ut.calculate_relevance(z, clids)
 
                 # prec = ut.compute_max_precision(clids, partsz[distrib], z)
-                features = extract_features(c, rels[i][j][r], len(outliers), clids, z)
-
-                feats[distrib][linkagemeth][r] = features
+                f = extract_features(c, rels[i][j][r], len(outliers), clids, z)
+                feats[distrib][linkagemeth][r] = f
                 # TODO: What to do do when precision below precthresh???
                 # nimprec[distrib][linkagemeth] += nimprec
 
-    breakpoint()
-    avgrel = ut.average_relevances(rels, distribs, linkagemeths)
-    filename = pjoin(outdir, 'nimprec.csv')
-    pd.DataFrame(nimprec).to_csv(filename, sep='|', index_label='linkagemeth')
-
-    gtruths = ut.compute_gtruth_vectors(distribs, nrealizations)
-    diffnorms, winners = compute_rel_to_gtruth_difference(
-            avgrel, gtruths, distribs, linkagemeths, nrealizations)
-
-    export_results(diffnorms, rels, features, distribs, linkagemeths,
-                   datadim, outdir)
+    gtruths = ut.compute_gtruth_vectors(k, distribs, nrealizations)
+    vpred = define_pred_vectors(rels, nclu, distribs, k)
+    diffnorms = validate_vpred(vpred, gtruths)
+    export_results(diffnorms, rels, distribs, linkagemeths, outdir)
+    # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
 ##########################################################
 if __name__ == "__main__":

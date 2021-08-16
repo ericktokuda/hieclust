@@ -1,5 +1,5 @@
 {
-  "linkagemeths": "single",
+  "linkagemeths": "ward",
   "datadim": 2,
   "samplesz": 100,
   "distribs": "1,uniform",
@@ -8,7 +8,7 @@
   "pruningparam": 0.02,
   "precthresh": 0.7,
   "metric": "euclidean",
-  "nrealizations": 20,
-  "seed": 0,
+  "nrealizations": 3,
+  "seed": 1,
   "outdir": "/tmp/out/"
 }

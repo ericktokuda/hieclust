@@ -22,6 +22,7 @@ from myutils import info
 
 ##########################################################
 NOTFOUND = -1
+
 ##########################################################
 def multivariate_normal(x, mean, cov):
     """P.d.f. of the multivariate normal when the covariance matrix is positive
@@ -285,7 +286,7 @@ def generate_data_k4(data, partsz, samplesz, ndims, distribs):
 ##########################################################
 def generate_data(distribs, samplesz, ndims):
     """Synthetic data """
-    info(inspect.stack()[0][3] + '()')
+    # info(inspect.stack()[0][3] + '()')
 
     data = {}
     partsz = {}
@@ -350,7 +351,7 @@ def get_descendants(z, nleaves, clustid, itself=True):
 ##########################################################
 def get_leaves(z, clustid):
     """Get leaves below clustid """
-    n = z.shape[0] + 1
+    n = len(z) + 1
     desc = get_descendants(z, n, clustid, itself=True)
     return desc[desc < n]
 
@@ -426,34 +427,49 @@ def identify_outliers(linkageret, outliersratio, hfloor):
 ##########################################################
 def get_cluster(clsize, clustids, z):
     """Try to find a cluster of minimum size @clsize in the data given by @z"""
-    n = z.shape[0] + 1
+    n = len(z) + 1
     allleaves = set(list(range(n)))
     visitted = set(get_leaves_all(z, clustids))
     nonvisitted = allleaves.difference(visitted)
 
     if clsize > (len(allleaves) - len(visitted)): return NOTFOUND
+    newclustids = []
 
     for leaf in nonvisitted:
         u = leaf
         while(get_nleaves(z, u) < clsize):
+            visitted = set(get_leaves_all(z, clustids))
             uleaves = set(get_leaves(z, u))
             if len(uleaves.intersection(visitted)) > 0: break
             u = get_parent(z, u)
 
-        inters = set(get_leaves(z, u)).intersection(visitted)
-        if get_nleaves(z, u) >= clsize and len(inters) == 0: return u
-    return NOTFOUND
+        leavesu = set(get_leaves(z, u))
+        inters = leavesu.intersection(visitted)
+        if len(inters) > 0: continue # If any leaf had already been found, abort
+        if len(leavesu) == clsize: return u # The new cluster size is exactly clsize
+        newclustids.append(u)
+
+    if len(newclustids) == 0: return NOTFOUND
+
+    minid = -1; mindiff = n
+
+    for clid in newclustids:
+        curdiff = np.abs(get_nleaves(z, clid) - clsize)
+        if curdiff < mindiff:
+            minid = clid; mindiff = curdiff
+
+    return minid
 
 ##########################################################
 def get_last_valid_link(clid, clsize, z):
-    # Get the cluster with size closest to the requested
-    # (eventually remove the last link)
-    n = z.shape[0] + 1
+    """ Get the cluster with size closest to the requested among clid
+    and its children"""
+    n = len(z) + 1
     diff0 = np.abs(get_nleaves(z, clid) - clsize)
     child1, child2 = int(z[clid -n, 0]), int(z[clid -n, 1])
     diff1 = np.abs(get_nleaves(z, child1) - clsize)
     diff2 = np.abs(get_nleaves(z, child2) - clsize)
-    ind = np.argmax([diff0, diff1, diff2])
+    ind = np.argmin([diff0, diff1, diff2])
     if ind == 0: return clid
     elif ind == 1: return child1
     elif ind == 2: return child2
@@ -461,7 +477,7 @@ def get_last_valid_link(clid, clsize, z):
 ##########################################################
 def get_highest_cluster(z, clustids):
     """Get the id of the cluster in @clustids with highest height."""
-    n = z.shape[0] + 1
+    n = len(z) + 1
     maxid = -1
     maxh = -1
     for clid in clustids:
@@ -473,9 +489,9 @@ def get_highest_cluster(z, clustids):
 def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
     """Return npred, rel, feats, prec"""
     z = linkage(data, linkagemeth, metric)
-    n = z.shape[0] + 1
+    n = len(z) + 1
 
-    for i in range(k, 0, -1): # Try to find a decreasing number of clusters
+    for i in range(k, 0, -1): # Find the max number of clusters up to k
         clustids = []
         found = False
 
@@ -519,6 +535,7 @@ def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf
         bbox =  matplotlib.transforms.Bbox.from_extents(x0, y0, x1, y1)
         fig.savefig(pjoin(outdir, prefix + labels[k] + '.' + fmt),
                       bbox_inches=bbox)
+
 ##########################################################
 def plot_contours(labels, outdir, icons=False):
     ndims = 2
@@ -603,7 +620,7 @@ def hex2rgb(hexcolours, normalized=False, alpha=None):
 ##########################################################
 def calculate_relevance(z, clustids):
     maxdist = z[-1, 2]
-    n = z.shape[0] + 1
+    n = len(z) + 1
     acc = 0
     for cl in clustids:
         acc += z[cl - n, 2]
@@ -647,34 +664,12 @@ def accumulate_relevances(rels, distribs, linkagemeths):
     return accrel
 
 ##########################################################
-def average_relevances(rels, distribs, linkagemeths):
-    avgrel = {k: {} for k in distribs} # accumulated relevances
-
-    aux = rels[distribs[0]][linkagemeths[0]]
-    n = np.sum([ len(k) for k in aux])
-    for i, distrib in enumerate(distribs):
-        for linkagemeth in linkagemeths:
-            avgrel[distrib][linkagemeth] = np.zeros(2)
-            for j, rel in enumerate(rels[distrib][linkagemeth]):
-                avgrel[distrib][linkagemeth][j] = np.sum(rel) / n
-    return avgrel
-
-##########################################################
-def compute_gtruth_vectors(distribs, nrealizations):
-    """Compute the ground-truth as proposed by Luciano
-
-    Args:
-    data(dict): dict with key 'numclust,method,param' and list as values
-
-    Returns:
-    dict: key 'numclust,method,param' and list as values
-    """
-    gtruths = {}
-    for i, k in enumerate(distribs):
-        nclusters = int(k.split(',')[0])
-        gtruths[k] = np.zeros(nclusters)
-        gtruths[k][nclusters-1] = 1.0
-
+def compute_gtruth_vectors(maxnclu, distribs, nrealizations):
+    """Compute the ground-truth as proposed by Luciano """
+    gtruths = np.zeros((len(distribs), maxnclu), dtype=float)
+    for i, d in enumerate(distribs):
+        n = int(d.split(',')[0])
+        gtruths[i, n - 1] = nrealizations # n-1 because Python is 0-index based
     return gtruths
 
 ##########################################################
@@ -692,4 +687,3 @@ def pca(xin, normalize=False):
     evals = evals[idx]
     a = np.dot(x, evecs)
     return a, evecs, evals
-
