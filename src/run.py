@@ -108,6 +108,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     for r in range(nrealizations): # Loop-realization
         info('Realization {:02d}'.format(r))
         data, partsz = ut.generate_data(distribs, samplesz, datadim)
+
         # ut.plot_data(data, partsz, outdir); return
 
         for j, linkagemeth in enumerate(linkagemeths): # Loop-method

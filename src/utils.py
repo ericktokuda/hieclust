@@ -172,22 +172,22 @@ def generate_data_k1(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=1"""
     mu = np.zeros((1, ndims))
 
-    b = '1,uniform'
+    b = '1,uniform,0'
     r = np.array([1])
     if b in distribs:
         data[b], partsz[b] = generate_uniform(samplesz, ndims, mu, r)
 
-    b = '1,gaussian'
+    b = '1,gaussian,0'
     cov = np.array([np.eye(ndims)])*.3
     if b in distribs:
         data[b], partsz[b] = generate_multivariate_normal(samplesz, ndims, 1, cov)
 
-    b = '1,power'
+    b = '1,power,0'
     if b in distribs:
         data[b], partsz[b] = generate_power(samplesz, ndims, 2, mu, np.array([1])*1,
                 positive=True)
 
-    b = '1,exponential'
+    b = '1,exponential,0'
     if b in distribs:
         data[b], partsz[b] = generate_exponential(samplesz, ndims, mu, np.ones(1)*.3)
 
@@ -304,6 +304,11 @@ def generate_data(distribs, samplesz, ndims):
                                            mus2, covs2, distribs)
     data, partsz = generate_data_k3(data, partsz, samplesz, ndims, distribs)
     data, partsz = generate_data_k4(data, partsz, samplesz, ndims, distribs)
+
+    if len(data) < len(distribs):
+        info('One of the distribs could not be generated!')
+        raise Exception('Issue in generate_data() in utils.py')
+
 
     return data, partsz
 

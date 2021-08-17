@@ -2,7 +2,7 @@
   "linkagemeths": "ward",
   "datadim": 2,
   "samplesz": 100,
-  "distribs": "1,uniform",
+  "distribs": "1,uniform,0",
   "maxnclu": 5,
   "clrelsize": 0.3,
   "pruningparam": 0.02,
