@@ -124,7 +124,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
                     # continue
 
                 z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
-                                                         metric, clsize, c)
+                                                      metric, clsize, c)
 
                 if len(clids) == 0: continue #TODO: DEFINE WHAT TO when errors
 

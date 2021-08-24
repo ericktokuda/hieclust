@@ -94,6 +94,63 @@ def plot_parallel(df, colours, ax, fig):
     fig.lines.append(line)
 
 ##########################################################
+def plot_parallel2(dforig, colours, ax, fig):
+    # dim = df.dim[0]
+    # df = df.T.reset_index()
+    # df = dforig[['nmodes', 'linkagemeth', 'diff']]
+    linkagemeths = np.unique(dforig.linkagemeth)
+    nmodes = np.unique(dforig.nmodes)
+    data = []
+    for l in linkagemeths:
+        row = [l]
+        for n in nmodes:
+            aux = dforig.loc[(dforig.linkagemeth == l) & (dforig.nmodes == n)]
+            row.append(aux['diff'].values[0])
+        data.append(row)
+    cols = ['linkagemeth', 'uni', 'bi', 'tri', 'four']
+    df = pd.DataFrame(data, columns=cols)
+
+    ax = pd.plotting.parallel_coordinates(
+        df, 'linkagemeth',
+        axvlines_kwds={'visible':True, 'color':np.ones(3)*.6,
+                       'linewidth':4, 'alpha': 0.9, },
+        ax=ax, linewidth=4, alpha=0.9,
+        color = colours,
+    )
+    ax.yaxis.grid(False)
+    ax.xaxis.set_ticks_position('top')
+    # ax.set_yticks([0, .25, .5, .75, 1])
+    # ax.set_ylim(-0.1, 1.25)
+    ax.tick_params(axis='y', which='major', labelsize=25)
+    ax.set_xticklabels([])
+    # ax.set_xlim(-.5, 7.8)
+    ax.set_ylabel('Avg. difference', fontsize=25)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    ax.legend(
+            fancybox=True,
+            framealpha=0.7,
+            fontsize=25,
+            loc=[.80, .18],
+    )
+    # ax.legend(fancybox=True, framealpha=0.5)
+
+    ax.tick_params(bottom="off")
+    ax.tick_params(axis='x', length=0)
+
+    # axicon = fig.add_axes([0.4,0.4,0.1,0.1])
+    # axicon.imshow(np.random.rand(100,100))
+    # axicon.set_xticks([])
+    # axicon.set_yticks([])
+
+    trans = blended_transform_factory(fig.transFigure, ax.transAxes) # separator
+    line = Line2D([0.05, .99], [-.02, -.02], color='k', transform=trans)
+    plt.tight_layout()
+    fig.lines.append(line)
+
+##########################################################
 def include_icons(iconpaths, ndims, fig):
     dy = 1 / (ndims*ndims)
     for i, iconpath in enumerate(iconpaths):
@@ -139,6 +196,43 @@ def plot_parallel_all(df, iconsdir, label, palettehex, outdir):
 
     plt.savefig(pjoin(outdir, 'parallel_all{}.pdf'.format(label)))
 
+
+##########################################################
+def plot_parallel_ks(df, label, palettehex, outdir):
+    info(inspect.stack()[0][3] + '()')
+    if not os.path.isdir(outdir): os.mkdir(outdir)
+
+    # colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
+    colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
+    clrelsizes = np.unique(df.clrelsize)
+    nmodes = np.unique(df.nmodes)
+
+    figscale = 4.5
+    fig, axs = plt.subplots(len(clrelsizes), 1,
+                            figsize=(5*figscale, len(clrelsizes)*figscale),
+                            squeeze=False)
+
+
+    for i, clrelsize in enumerate(clrelsizes):
+        slice = df[df.clrelsize == clrelsize]
+        # slice = slice.set_index('nmodes')
+        plot_parallel2(slice, colours, axs[i, 0], fig)
+
+    # plt.tight_layout(rect=(0.1, 0, 1, 1))
+    plt.tight_layout(rect=(0.1, 0, .95, .92), h_pad=1)
+    for i, cl in enumerate(clrelsizes):
+        plt.text(-0.15, .5, 's: {}'.format(int(cl*500)),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize='30', transform=axs[i, 0].transAxes
+                 )
+
+    modaltxt = ['unimodal', 'bimodal', 'trimodal', 'four-modal']
+    for i, n in enumerate(nmodes):
+        plt.text(0.00+i*.33, 1.1, '{}'.format(modaltxt[i]),
+                 horizontalalignment='center', verticalalignment='center',
+                 fontsize='30', transform=axs[0, 0].transAxes
+                 )
+    plt.savefig(pjoin(outdir, 'parallel_all.pdf'))
 ##########################################################
 def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     info(inspect.stack()[0][3] + '()')
@@ -658,7 +752,7 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
 ##########################################################
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--pardir', default='/tmp/out/',
+    parser.add_argument('--pardir', required=True,
             help='Path to the folder containing results[all].csv')
     args = parser.parse_args()
 
@@ -666,8 +760,10 @@ def main():
                         datefmt='%Y%m%d %H:%M', level=logging.INFO)
 
     t0 = time.time()
-    outdir = pjoin(args.pardir, 'figsresults/')
-    iconsdir = pjoin(args.pardir, 'figsarticle/')
+    # outdir = pjoin(args.pardir, 'figsresults/')
+    # iconsdir = pjoin(args.pardir, 'figsarticle/')
+    outdir = '/tmp/out/figsresults/'
+    iconsdir = '/tmp/out/icons/'
 
     if not os.path.isdir(outdir): os.mkdir(outdir)
 
@@ -677,10 +773,13 @@ def main():
 
     resdf = concat_results(args.pardir)
 
-    distribs = np.unique(resdf.distrib)
+    # distribs = np.unique(resdf.distrib)
+    distribs = ['gaussian']
     linkagemeths = resdf.columns[1:-1]
 
     # plot_parallel_all(resdf, iconsdir, '_dims', palettehex, outdir)
+    plot_parallel_ks(resdf, '_dims', palettehex, outdir)
+
     # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
     # plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
 
@@ -696,7 +795,7 @@ def main():
 
     # analyze_features_all(args.pardir, palettehex, outdir)
 
-    plot_vectors_all(args.pardir, distribs, linkagemeths, palettehex, outdir)
+    # plot_vectors_all(args.pardir, distribs, linkagemeths, palettehex, outdir)
     return
     analyze_features_all(args.pardir, palettehex, outdir)
     print_single_precision(args.pardir, outdir)

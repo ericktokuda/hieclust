@@ -27,7 +27,7 @@ import sklearn.datasets
 import utils
 
 ##########################################################
-def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette, outliers):
+def plot_dendrogram(z, linkagemeth, ax, avgheight, clustids, palette, outliers):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
     given by @lthresh
 
@@ -46,8 +46,7 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
     z[:, 2] = dists
     n = z.shape[0] + 1
     colors = (2 * n - 1) * ['k']
-    clcolours = [palette[0], palette[5]]
-    # clcolours = ['k', 'k']
+    clcolours = [palette[0], palette[5], palette[1], palette[2], palette[3]]
     outlierscolour = palette[1]
 
     for i, clustid in enumerate(clustids):
@@ -80,9 +79,9 @@ def plot_dendrogram(z, linkagemeth, ax, avgheight, maxheight, clustids, palette,
     )
     if avgheight > 0:
         ax.axhline(y=avgheight/maxh, linestyle='--', linewidth=3, alpha=.7)
-    if maxheight > 0:
-        ax.axhline(y=maxheight/maxh, linestyle='--', c=outlierscolour,
-                alpha=.7, linewidth=3)
+    # if maxheight > 0:
+        # ax.axhline(y=maxheight/maxh, linestyle='--', c=outlierscolour,
+                # alpha=.7, linewidth=3)
     return colors[:n]
 
 ##########################################################
@@ -395,16 +394,15 @@ def plot_article_gaussian_distribs_scale(palette, outdir):
 def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
         ndims, outdir):
     info(inspect.stack()[0][3] + '()')
-    data, partsz = utils.generate_data(distribs, 200, ndims)
+    samplesz = 200
+    data, partsz = utils.generate_data(distribs, samplesz, ndims)
     clrelsize = .3
-    minnclusters = 2
+    clsize = int(clrelsize * samplesz)
     nrows = len(distribs)
     ndistribs = nrows
     ncols = 3
     pruningparam = .03
-    samplesz = data[list(data.keys())[0]].shape[0]
-    # ndims = data[list(data.keys())[0]].shape[1]
-    clsize = int(clrelsize * samplesz)
+    k = 4
 
     nsubplots = nrows * ncols
     figscale = 4
@@ -414,28 +412,29 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
                 figsize=(1.2*ncols*figscale, nrows*figscale), squeeze=False)
 
         texts = []
-        for i, k in enumerate(distribs):
-            nclusters = int(k.split(',')[0])
+        for i, distrib in enumerate(distribs):
+            nclusters = int(distrib.split(',')[0])
 
-            z = linkage(data[k], linkagemeth, metric)
-            maxdist = z[-1, 2]
-            clustids, avgheight, outliersdist, outliers = utils.find_clusters(data[k], z,
-                    clsize, minnclusters, pruningparam)
+            d = data[distrib]
+            z, clustids, outliers = utils.find_clusters(d, k, linkagemeth,
+                    metric, clsize, pruningparam)
 
-            rel = utils.calculate_relevance(avgheight, outliersdist, maxdist)
-            prec = utils.compute_max_precision(clustids, partsz[k], z)
-            colours = plot_dendrogram(z, linkagemeth, ax[i, 2], avgheight,
-                    outliersdist, clustids, palettehex, outliers)
-            clsizes = []
-            for clid in clustids: clsizes.append(len(utils.get_leaves(z, clid)))
-            texts.append(ax[i, 2].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
-                    format(clsizes, rel, prec),
+            
+            rel = utils.calculate_relevance(z, clustids)
+            colours = plot_dendrogram(z, linkagemeth, ax[i, 2], rel,
+                    clustids, palettehex, outliers)
+            texts.append(ax[i, 2].text(.8, .8, 'rel:{:.2f}'.\
+                    format(rel),
                     horizontalalignment='center', verticalalignment='center',
                     fontsize=15, transform = ax[i, 2].transAxes))
+            # texts.append(ax[i, 2].text(.8, .8, 'n:{}\nrel:{:.2f}\nprec:{:.2f}'.\
+                    # format(clsizes, rel, prec),
+                    # horizontalalignment='center', verticalalignment='center',
+                    # fontsize=15, transform = ax[i, 2].transAxes))
 
-            ax[i, 0].scatter(data[k][:, 0], data[k][:, 1], c=colours)
+            ax[i, 0].scatter(d[:, 0], d[:, 1], c=colours)
             ax[i, 0].set_title('Spatial coordinates (first cords)')
-            xylim = np.max(np.abs(data[k][:, :2])) * 1.1
+            xylim = np.max(np.abs(d[:, :2])) * 1.1
             ax[i, 0].set_xlim(-xylim, +xylim)
             ax[i, 0].set_ylim(-xylim, +xylim)
 
@@ -446,18 +445,18 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
 
             ax[i, 0].set_ylabel(k, rotation=90, size=24)
 
-            tr, evecs, evals = utils.pca(data[k], normalize=True)
+            tr, evecs, evals = utils.pca(d, normalize=True)
             ax[i, 1].set_title('PCA components (pc1 and pc2)')
             ax[i, 1].scatter(tr[:, 0], tr[:, 1], c=colours)
             xylim = np.max(np.abs(tr[:, 0:2])) * 1.1
             ax[i, 1].set_xlim(-xylim, +xylim)
             ax[i, 1].set_ylim(-xylim, +xylim)
 
-
-
         plt.tight_layout(h_pad=3.5, w_pad=3.5)
         plt.savefig(pjoin(outdir, 'hieclust_{}_all.pdf'.format(linkagemeth)))
 
+        continue
+        
         for i in range(nrows):
             texts[i].set_visible(False)
             for j in range(2):
@@ -470,7 +469,6 @@ def plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
             labels.append('hieclust_' + v + '_pca_'+linkagemeth)
             labels.append('hieclust_' + v + '_dendr_'+linkagemeth)
 
-        break
         # utils.export_individual_axis(ax, fig, labels, outdir, pad=.5, fmt='pdf')
 
 ##########################################################
@@ -780,8 +778,9 @@ def main():
     decays = 'uniform,gaussian,power,exponential'.split(',')
 
     alpha = '4'
-    distribs = [','.join(['1', d]) for d in decays]
-    distribs += [','.join(['2', d, alpha]) for d in decays]
+    distribs = [','.join(['1', d, '0']) for d in decays]
+    # distribs += [','.join(['2', d, alpha]) for d in decays]
+    distribs = ['1,gaussian,0', '2,gaussian,4', '3,gaussian,4', '4,gaussian,4']
     # distribs += [','.join(['2', d, '5']) for d in decays]
     # distribs += [','.join(['2', d, '6']) for d in decays]
 
@@ -805,10 +804,10 @@ def main():
     # return
     # breakpoint()
 
-    # plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
-            # 2, outdir)
+    plot_dendrogram_clusters(distribs, linkagemeths, metric, palettehex,
+            2, outdir)
     # plot_contours(distribs, outdir)
-    plot_contours(distribs, outdir, True)
+    # plot_contours(distribs, outdir, True)
     # plot_article_uniform_distribs_scale(palettehex, outdir)
     # plot_article_uniform_distribs_scale3(palettehex, outdir)
     # plot_article_uniform_distribs_scale4(palettehex, outdir)
