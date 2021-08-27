@@ -362,8 +362,10 @@ def get_leaves(z, clustid):
 
 ##########################################################
 def get_nleaves(z, clustid):
-    """Get leaves below clustid """
-    return len(get_leaves(z, clustid))
+    """Get leaves below clustid, including itself if it is a leaf."""
+    n = len(z) + 1
+    if clustid < n: return clustid
+    else return z[clustid - n, 3]
 
 ##########################################################
 def get_leaves_all(z, clustids):
