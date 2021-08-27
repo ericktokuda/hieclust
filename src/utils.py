@@ -365,7 +365,7 @@ def get_nleaves(z, clustid):
     """Get leaves below clustid, including itself if it is a leaf."""
     n = len(z) + 1
     if clustid < n: return clustid
-    else return z[clustid - n, 3]
+    else: return z[clustid - n, 3]
 
 ##########################################################
 def get_leaves_all(z, clustids):
@@ -626,12 +626,13 @@ def hex2rgb(hexcolours, normalized=False, alpha=None):
 
 ##########################################################
 def calculate_relevance(z, clustids):
+    """Average height normalized by the max. distance in the linkage matrix."""
     maxdist = z[-1, 2]
     n = len(z) + 1
     acc = 0
     for cl in clustids:
         acc += z[cl - n, 2]
-    return acc / len(clustids) / maxdist
+    return (acc / len(clustids)) / maxdist
 
 ##########################################################
 def compute_max_precision(clustids, partsz, z):

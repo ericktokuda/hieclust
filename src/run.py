@@ -38,7 +38,7 @@ def define_pred_vectors(rels, nclu, distribs, maxnclu):
     for i in range(sz1):
         for j in range(sz2):
             for k in range(maxnclu):
-                inds = np.where(nclu[i, j, :] == k)
+                inds = np.where(nclu[i, j, :] == k + 1)
                 r = rels[i, j, :][inds]
                 if len(r) == 0: continue
                 vpred[i, j, k] = np.sum(r)
@@ -51,10 +51,11 @@ def validate_vpred(vpred, gtruths):
     for i in range(sz1):
         for j in range(sz2):
             diffnorms[i, j] = np.linalg.norm(vpred[i, j, :] - gtruths[i, :])
+            print(diffnorms[i, j], vpred[i, j, :], gtruths[i, :])
     return diffnorms
 
 ##########################################################
-def export_results(diffnorms, rels, distribs, linkagemeths, outdir):
+def export_results(diffnorms, nclu, rels, distribs, linkagemeths, outdir):
     data = []
     for j, l in enumerate(linkagemeths):
         data.append([l] + diffnorms[:, j].tolist())
@@ -125,6 +126,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
 
                 z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
                                                       metric, clsize, c)
+                breakpoint()
 
                 if len(clids) == 0: continue #TODO: DEFINE WHAT TO when errors
 
@@ -140,7 +142,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     gtruths = ut.compute_gtruth_vectors(k, distribs, nrealizations)
     vpred = define_pred_vectors(rels, nclu, distribs, k)
     diffnorms = validate_vpred(vpred, gtruths)
-    export_results(diffnorms, rels, distribs, linkagemeths, outdir)
+    export_results(diffnorms, nclu, rels, distribs, linkagemeths, outdir)
     # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
 ##########################################################
