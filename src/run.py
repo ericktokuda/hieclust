@@ -51,7 +51,6 @@ def validate_vpred(vpred, gtruths):
     for i in range(sz1):
         for j in range(sz2):
             diffnorms[i, j] = np.linalg.norm(vpred[i, j, :] - gtruths[i, :])
-            print(diffnorms[i, j], vpred[i, j, :], gtruths[i, :])
     return diffnorms
 
 ##########################################################
@@ -83,6 +82,18 @@ def export_features(diffnorms, rels, distribs, linkagemeths, outdir):
     fh.close()
 
 ##########################################################
+def dummy_data(distribs, samplesz, datadim):
+    data = {}
+    partsz = {}
+    # d = [21, 22, 23, 24, 25, 40, 42, 44, 46, 48]
+    # data['2,gaussian,4'] = [[dd] for dd in d]
+    # partsz['2,gaussian,4'] = [5, 5]
+
+    d = [21, 22, 23, 42, 44, 46, 61, 62, 63, 64]
+    data['3,gaussian,4'] = [[dd] for dd in d]
+    partsz['3,gaussian,4'] = [3, 3, 4]
+    return data, partsz
+##########################################################
 def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
                         c, precthresh, metric, nrealizations, outdir):
     info(inspect.stack()[0][3] + '()')
@@ -109,7 +120,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     for r in range(nrealizations): # Loop-realization
         info('Realization {:02d}'.format(r))
         data, partsz = ut.generate_data(distribs, samplesz, datadim)
-
+        # data, partsz = dummy_data(distribs, samplesz, datadim)
         # ut.plot_data(data, partsz, outdir); return
 
         for j, linkagemeth in enumerate(linkagemeths): # Loop-method
@@ -126,7 +137,6 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
 
                 z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
                                                       metric, clsize, c)
-                breakpoint()
 
                 if len(clids) == 0: continue #TODO: DEFINE WHAT TO when errors
 

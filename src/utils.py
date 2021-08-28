@@ -364,7 +364,7 @@ def get_leaves(z, clustid):
 def get_nleaves(z, clustid):
     """Get leaves below clustid, including itself if it is a leaf."""
     n = len(z) + 1
-    if clustid < n: return clustid
+    if clustid < n: return 1
     else: return z[clustid - n, 3]
 
 ##########################################################
@@ -434,18 +434,19 @@ def identify_outliers(linkageret, outliersratio, hfloor):
 ##########################################################
 def get_cluster(clsize, clustids, z):
     """Try to find a cluster of minimum size @clsize in the data given by @z"""
+
     n = len(z) + 1
     allleaves = set(list(range(n)))
-    visitted = set(get_leaves_all(z, clustids))
-    nonvisitted = allleaves.difference(visitted)
+    visittedorig = set(get_leaves_all(z, clustids))
+    nonvisitted = allleaves.difference(visittedorig)
 
-    if clsize > (len(allleaves) - len(visitted)): return NOTFOUND
+    if clsize > (len(allleaves) - len(visittedorig)): return NOTFOUND
     newclustids = []
 
+    visitted = visittedorig
     for leaf in nonvisitted:
         u = leaf
         while(get_nleaves(z, u) < clsize):
-            visitted = set(get_leaves_all(z, clustids))
             uleaves = set(get_leaves(z, u))
             if len(uleaves.intersection(visitted)) > 0: break
             u = get_parent(z, u)
@@ -455,6 +456,7 @@ def get_cluster(clsize, clustids, z):
         if len(inters) > 0: continue # If any leaf had already been found, abort
         if len(leavesu) == clsize: return u # The new cluster size is exactly clsize
         newclustids.append(u)
+        visitted = visitted.union(leavesu)
 
     if len(newclustids) == 0: return NOTFOUND
 
@@ -488,9 +490,12 @@ def get_highest_cluster(z, clustids):
     maxid = -1
     maxh = -1
     for clid in clustids:
+        if clid < n: continue
         h = z[clid - n, 2]
         if h > maxh: maxid = clid
-    return maxid
+
+    if maxid == -1: return clustids[0]
+    else: return maxid
 
 ##########################################################
 def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
@@ -631,7 +636,8 @@ def calculate_relevance(z, clustids):
     n = len(z) + 1
     acc = 0
     for cl in clustids:
-        acc += z[cl - n, 2]
+        if cl < n: continue
+        else: acc += z[cl - n, 2]
     return (acc / len(clustids)) / maxdist
 
 ##########################################################
