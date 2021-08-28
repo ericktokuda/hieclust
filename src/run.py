@@ -54,15 +54,22 @@ def validate_vpred(vpred, gtruths):
     return diffnorms
 
 ##########################################################
-def export_results(diffnorms, nclu, rels, distribs, linkagemeths, outdir):
-    data = []
-    for j, l in enumerate(linkagemeths):
-        data.append([l] + diffnorms[:, j].tolist())
+def export_results(diffnorms, vpred, rels, distribs, linkagemeths, outdir):
+    datapred = []
+    datadiff = []
+    for i, d in enumerate(distribs):
+        for j, l in enumerate(linkagemeths):
+            row = [d, l] + vpred[i, j, :].tolist()
+            datapred.append(row)
+            datadiff.append([d, l, diffnorms[i, j]])
 
-    cols = ['linkagemeth'] + distribs
-    fpath = pjoin(outdir, 'results.csv')
-    pd.DataFrame(data, columns=cols).to_csv(fpath, sep='|', index=False)
-    return
+    cols = ['distrib', 'linkagemeth', 'diffnorm']
+    fpath = pjoin(outdir, 'diffnorms.csv')
+    pd.DataFrame(datadiff, columns=cols).to_csv(fpath, sep='|', index=False)
+
+    fpath = pjoin(outdir, 'vpred.csv')
+    cols = ['distrib', 'linkagemeth', '1clu', '2clu', '3clu', '4clu']
+    pd.DataFrame(datapred, columns=cols).to_csv(fpath, sep='|', index=False)
 
 ##########################################################
 def export_features(diffnorms, rels, distribs, linkagemeths, outdir):
@@ -151,8 +158,9 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
 
     gtruths = ut.compute_gtruth_vectors(k, distribs, nrealizations)
     vpred = define_pred_vectors(rels, nclu, distribs, k)
+
     diffnorms = validate_vpred(vpred, gtruths)
-    export_results(diffnorms, nclu, rels, distribs, linkagemeths, outdir)
+    export_results(diffnorms, vpred, rels, distribs, linkagemeths, outdir)
     # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
 ##########################################################
