@@ -54,22 +54,27 @@ def validate_vpred(vpred, gtruths):
     return diffnorms
 
 ##########################################################
-def export_results(diffnorms, vpred, rels, distribs, linkagemeths, outdir):
+def export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
+        outdir):
     datapred = []
     datadiff = []
     for i, d in enumerate(distribs):
+        m, dd, p = d.split(',')
         for j, l in enumerate(linkagemeths):
-            row = [d, l] + vpred[i, j, :].tolist()
+            row = [m, dd, p, datadim, l] + vpred[i, j, :].tolist()
             datapred.append(row)
-            datadiff.append([d, l, diffnorms[i, j]])
+            datadiff.append([m, dd, p, datadim, l, diffnorms[i, j]])
 
-    cols = ['distrib', 'linkagemeth', 'diffnorm']
+    cols = ['nmodes', 'distrib', 'param', 'dim', 'linkagemeth', 'diffnorm']
     fpath = pjoin(outdir, 'diffnorms.csv')
-    pd.DataFrame(datadiff, columns=cols).to_csv(fpath, sep='|', index=False)
+    df = pd.DataFrame(datadiff, columns=cols)
+    df.to_csv(fpath, index=False, float_format='%.3f')
 
     fpath = pjoin(outdir, 'vpred.csv')
-    cols = ['distrib', 'linkagemeth', '1clu', '2clu', '3clu', '4clu']
-    pd.DataFrame(datapred, columns=cols).to_csv(fpath, sep='|', index=False)
+    cols = ['nmodes', 'distrib', 'param', 'dim', 'linkagemeth',
+            'clu1', 'clu2', 'clu3', 'clu4']
+    df = pd.DataFrame(datapred, columns=cols)
+    df.to_csv(fpath, index=False, float_format='%.3f')
 
 ##########################################################
 def export_features(diffnorms, rels, distribs, linkagemeths, outdir):
@@ -160,7 +165,8 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     vpred = define_pred_vectors(rels, nclu, distribs, k)
 
     diffnorms = validate_vpred(vpred, gtruths)
-    export_results(diffnorms, vpred, rels, distribs, linkagemeths, outdir)
+    export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
+            outdir)
     # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
 ##########################################################
