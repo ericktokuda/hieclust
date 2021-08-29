@@ -54,7 +54,7 @@ def validate_vpred(vpred, gtruths):
     return diffnorms
 
 ##########################################################
-def export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
+def export_results(diffnorms, vpred, rels, k, distribs, datadim, linkagemeths,
         clrelsize, prunparam, outdir):
     datapred = []
     datadiff = []
@@ -75,7 +75,9 @@ def export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
 
     fpath = pjoin(outdir, 'vpred.csv')
     cols = ['nmodes', 'distrib', 'distribparam', 'datadim', 'linkagemeth',
-            'clrelsize', 'prunparam', 'clu1', 'clu2', 'clu3', 'clu4']
+            'clrelsize', 'prunparam']
+    for i in range(k): cols.append('clu{}'.format(i+1))
+    
     df = pd.DataFrame(datapred, columns=cols)
     df.to_csv(fpath, index=False, float_format='%.3f')
 
@@ -168,7 +170,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
     vpred = define_pred_vectors(rels, nclu, distribs, k)
 
     diffnorms = validate_vpred(vpred, gtruths)
-    export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
+    export_results(diffnorms, vpred, rels, k, distribs, datadim, linkagemeths,
             clrelsize, c, outdir)
     # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
