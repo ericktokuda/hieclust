@@ -55,24 +55,27 @@ def validate_vpred(vpred, gtruths):
 
 ##########################################################
 def export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
-        outdir):
+        clrelsize, prunparam, outdir):
     datapred = []
     datadiff = []
     for i, d in enumerate(distribs):
         m, dd, p = d.split(',')
         for j, l in enumerate(linkagemeths):
-            row = [m, dd, p, datadim, l] + vpred[i, j, :].tolist()
+            row = [m, dd, p, datadim, l, clrelsize, prunparam]
+            row += vpred[i, j, :].tolist()
             datapred.append(row)
-            datadiff.append([m, dd, p, datadim, l, diffnorms[i, j]])
+            datadiff.append([m, dd, p, datadim, l, clrelsize,
+                prunparam, diffnorms[i, j]])
 
-    cols = ['nmodes', 'distrib', 'param', 'datadim', 'linkagemeth', 'diffnorm']
+    cols = ['nmodes', 'distrib', 'distribparam', 'datadim', 'linkagemeth',
+            'clrelsize', 'prunparam', 'diffnorm']
     fpath = pjoin(outdir, 'diffnorms.csv')
     df = pd.DataFrame(datadiff, columns=cols)
     df.to_csv(fpath, index=False, float_format='%.3f')
 
     fpath = pjoin(outdir, 'vpred.csv')
-    cols = ['nmodes', 'distrib', 'param', 'datadim', 'linkagemeth',
-            'clu1', 'clu2', 'clu3', 'clu4']
+    cols = ['nmodes', 'distrib', 'distribparam', 'datadim', 'linkagemeth',
+            'clrelsize', 'prunparam', 'clu1', 'clu2', 'clu3', 'clu4']
     df = pd.DataFrame(datapred, columns=cols)
     df.to_csv(fpath, index=False, float_format='%.3f')
 
@@ -166,7 +169,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
 
     diffnorms = validate_vpred(vpred, gtruths)
     export_results(diffnorms, vpred, rels, distribs, datadim, linkagemeths,
-            outdir)
+            clrelsize, c, outdir)
     # export_features(diffnorms, rels, distribs, linkagemeths, outdir)
 
 ##########################################################
