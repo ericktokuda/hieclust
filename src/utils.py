@@ -260,7 +260,7 @@ def generate_data_k3(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=3"""
     covs3 = np.array([np.eye(ndims)] * 3)
     stdavg = 1
-    alpha = 4
+    alpha = 5
 
     b = '3,gaussian,{}'.format(alpha)
     if not (b in distribs): return data, partsz
@@ -274,7 +274,7 @@ def generate_data_k4(data, partsz, samplesz, ndims, distribs):
     """Generate data for k=3"""
     covs4 = np.array([np.eye(ndims)] * 4)
     stdavg = 1
-    alpha = 4
+    alpha = 5
 
     b = '4,gaussian,{}'.format(alpha)
     if not (b in distribs): return data, partsz
