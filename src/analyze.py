@@ -3,11 +3,10 @@
 """
 
 import argparse
-import logging
+import datetime
 from os.path import join as pjoin
 from logging import debug, info
-import os
-import time
+import os, sys, time, scipy, inspect
 import numpy as np
 
 import matplotlib; matplotlib.use('Agg')
@@ -19,13 +18,11 @@ from matplotlib.lines import Line2D
 from scipy.stats import pearsonr
 from scipy import stats
 import pandas as pd
-
 import imageio
-import scipy
-import inspect
 import igraph
 
 import utils
+from myutils import create_readme
 
 ##########################################################
 def concat_results(resdir):
@@ -94,18 +91,18 @@ def plot_parallel(df, colours, ax, fig):
     fig.lines.append(line)
 
 ##########################################################
-def plot_parallel2(dforig, colours, ax, fig):
-    # dim = df.dim[0]
-    # df = df.T.reset_index()
-    # df = dforig[['nmodes', 'linkagemeth', 'diff']]
-    linkagemeths = np.unique(dforig.linkagemeth)
+def plot_parallel_modal(dforig, colours, ax, fig):
+    linkagemeths = ['single'] #linkagemeths = np.unique(df.linkagemeth)
+    prunparams = [0.02]
     nmodes = np.unique(dforig.nmodes)
     data = []
+    df = dforig.loc[dforig.distrib == 'gaussian']
+
     for l in linkagemeths:
         row = [l]
         for n in nmodes:
-            aux = dforig.loc[(dforig.linkagemeth == l) & (dforig.nmodes == n)]
-            row.append(aux['diff'].values[0])
+            aux = df.loc[(df.linkagemeth == l) & (df.nmodes == n)]
+            row.append(aux.diffnorm.values[0])
         data.append(row)
     cols = ['linkagemeth', 'uni', 'bi', 'tri', 'four']
     df = pd.DataFrame(data, columns=cols)
@@ -198,11 +195,8 @@ def plot_parallel_all(df, iconsdir, label, palettehex, outdir):
 
 
 ##########################################################
-def plot_parallel_ks(df, label, palettehex, outdir):
+def plot_parallel_modal_all(df, palettehex, outdir):
     info(inspect.stack()[0][3] + '()')
-    if not os.path.isdir(outdir): os.mkdir(outdir)
-
-    # colours = cm.get_cmap('tab10')(np.linspace(0, 1, 6))
     colours = utils.hex2rgb(palettehex, normalized=True, alpha=True)
     clrelsizes = np.unique(df.clrelsize)
     nmodes = np.unique(df.nmodes)
@@ -212,13 +206,10 @@ def plot_parallel_ks(df, label, palettehex, outdir):
                             figsize=(5*figscale, len(clrelsizes)*figscale),
                             squeeze=False)
 
-
     for i, clrelsize in enumerate(clrelsizes):
         slice = df[df.clrelsize == clrelsize]
-        # slice = slice.set_index('nmodes')
-        plot_parallel2(slice, colours, axs[i, 0], fig)
+        plot_parallel_modal(slice, colours, axs[i, 0], fig)
 
-    # plt.tight_layout(rect=(0.1, 0, 1, 1))
     plt.tight_layout(rect=(0.1, 0, .95, .92), h_pad=1)
     for i, cl in enumerate(clrelsizes):
         plt.text(-0.15, .5, 's: {}'.format(int(cl*500)),
@@ -233,6 +224,7 @@ def plot_parallel_ks(df, label, palettehex, outdir):
                  fontsize='30', transform=axs[0, 0].transAxes
                  )
     plt.savefig(pjoin(outdir, 'parallel_all.pdf'))
+
 ##########################################################
 def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     info(inspect.stack()[0][3] + '()')
@@ -313,7 +305,7 @@ def scatter_pairwise(df, methscorr, linkagemeths, palettehex, outdir):
 
             # Create the figure
             ax.legend(handles=legend_elements, loc='lower right')
-            
+
             # ax.legend(title='Dimension', loc='lower right')
             ax.set_xlabel(m1)
             ax.set_ylabel(m2)
@@ -560,7 +552,7 @@ def analyze_features(featpath, label, palettehex, outdir):
     for j in range(coeffs.shape[1]):
         dforig[coeffcols[j]] = coeffs[:, j]
         dforig['res'+coeffcols[j]] = residuals[:, j]
-        
+
     nrows = 5; ncols = 2; figscale = 5
     fig, ax = plt.subplots(nrows, ncols,
             figsize=(ncols*figscale, nrows*(.8*figscale)))
@@ -575,7 +567,7 @@ def analyze_features(featpath, label, palettehex, outdir):
             i = int(aux / 2)
             j = int(aux % 2)
             plot_attrib(df, attrib, palettehex, ax[i, j])
-        
+
         plot_link_heights(df, hcols, palettehex, ax[2, 0])
         plot_fitted_heights(df, len(hcols), coeffcols, palettehex, ax[2, 1])
 
@@ -750,35 +742,13 @@ def plot_vectors(dforig, distribs, linkagemeths, label, palettehex, outdir):
     return vectordata
 
 ##########################################################
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--pardir', required=True,
-            help='Path to the folder containing results[all].csv')
-    args = parser.parse_args()
-
-    logging.basicConfig(format='[%(asctime)s] %(message)s',
-                        datefmt='%Y%m%d %H:%M', level=logging.INFO)
-
-    t0 = time.time()
-    # outdir = pjoin(args.pardir, 'figsresults/')
-    # iconsdir = pjoin(args.pardir, 'figsarticle/')
-    outdir = '/tmp/out/figsresults/'
-    iconsdir = '/tmp/out/icons/'
-
-    if not os.path.isdir(outdir): os.mkdir(outdir)
-
+def main(expdir, iconsdir, outdir):
     np.random.seed(0)
-
     palettehex = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
+    diffdf = pd.read_csv(pjoin(expdir, 'diffnorms.csv'))
 
-    resdf = concat_results(args.pardir)
-
-    # distribs = np.unique(resdf.distrib)
-    distribs = ['gaussian']
-    linkagemeths = resdf.columns[1:-1]
-
-    # plot_parallel_all(resdf, iconsdir, '_dims', palettehex, outdir)
-    plot_parallel_ks(resdf, '_dims', palettehex, outdir)
+    plot_parallel_all(diffdf, iconsdir, '_dims', palettehex, outdir)
+    # plot_parallel_modal_all(diffdf, palettehex, args.outdir)
 
     # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
     # plot_parallel_all(resdf, iconsdir, '', palettehex, outdir)
@@ -805,5 +775,17 @@ def main():
 
 ##########################################################
 if __name__ == "__main__":
-    main()
+    info(datetime.date.today())
+    t0 = time.time()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--expdir', required=True, help='Experiments dir')
+    parser.add_argument('--iconsdir', default='/tmp/icons/', help='Experiments dir')
+    parser.add_argument('--outdir', default='/tmp/out/', help='Output directory')
+    args = parser.parse_args()
 
+    os.makedirs(args.outdir, exist_ok=True)
+    readmepath = create_readme(sys.argv, args.outdir)
+    main(args.expdir, args.iconsdir, args.outdir)
+
+    info('Elapsed time:{:.02f}s'.format(time.time()-t0))
+    info('Output generated in {}'.format(args.outdir))

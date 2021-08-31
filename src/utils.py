@@ -18,7 +18,7 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import brentq
 import pandas as pd
 from sklearn import preprocessing
-from myutils import info
+from myutils import info, plot
 
 ##########################################################
 NOTFOUND = -1
@@ -69,6 +69,7 @@ def generate_uniform(samplesz, ndims, mus, rads):
 
 ##########################################################
 def generate_multivariate_normal(samplesz, ndims, ncenters, covs=[]):
+    # TODO: Fix here. It is currently broken
     x = np.ndarray((samplesz*ncenters, ndims), dtype=float)
     mu0 = np.zeros(ndims)
 
@@ -245,7 +246,7 @@ def generate_data_inbalance(data, partsz, samplesz, ndims, mus2, covs2, distribs
     """Generate data with inbalance for k=2"""
     alpha = 5 # a bit more separated
     for b in distribs: # Data with imbalance
-        if not 'imbalance' in b: continue
+        if not 'inbalance' in b: continue
         ratio = float(b.split(',')[-1])
         sz1 = int(ratio * samplesz); sz2 = samplesz - sz1
         mask = np.zeros(2*samplesz, dtype=bool); mask[:sz1] = 1
@@ -308,7 +309,6 @@ def generate_data(distribs, samplesz, ndims):
     if len(data) < len(distribs):
         info('One of the distribs could not be generated!')
         raise Exception('Issue in generate_data() in utils.py')
-
 
     return data, partsz
 
@@ -525,30 +525,6 @@ def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
     return z, clustids, outliers
 
 ##########################################################
-def export_individual_axis(ax, fig, labels, outdir, pad=0.3, prefix='', fmt='pdf'):
-    n = ax.shape[0]*ax.shape[1]
-    for b in range(n):
-        i = k // ax.shape[1]
-        j = k  % ax.shape[1]
-        ax[i, j].set_title('')
-
-    for b in range(n):
-        i = k // ax.shape[1]
-        j = k  % ax.shape[1]
-        coordsys = fig.dpi_scale_trans.inverted()
-        extent = ax[i, j].get_window_extent().transformed(coordsys)
-        x0, y0, x1, y1 = extent.extents
-
-        if isinstance(pad, list):
-            x0 -= pad[0]; y0 -= pad[1]; x1 += pad[2]; y1 += pad[3];
-        else:
-            x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
-
-        bbox =  matplotlib.transforms.Bbox.from_extents(x0, y0, x1, y1)
-        fig.savefig(pjoin(outdir, prefix + labels[k] + '.' + fmt),
-                      bbox_inches=bbox)
-
-##########################################################
 def plot_contours(labels, outdir, icons=False):
     ndims = 2
     s = 500
@@ -609,9 +585,9 @@ def plot_contours(labels, outdir, icons=False):
                 # ax[i, j].set_xticks([])
 
     if icons:
-        export_individual_axis(ax, fig, labels, outdir, 0, 'icon_', 'png')
+        plot.export_all_axis(ax, fig, labels, outdir, 0, 'icon_', 'png')
     else:
-        export_individual_axis(ax, fig, labels, outdir, .3, 'contour_')
+        plot.export_all_axis(ax, fig, labels, outdir, .3, 'contour_')
 
 ##########################################################
 def hex2rgb(hexcolours, normalized=False, alpha=None):
