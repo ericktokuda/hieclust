@@ -27,6 +27,8 @@ from myutils import create_readme
 ##########################################################
 PALETTEHEX = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
 COLOURS = utils.hex2rgb(PALETTEHEX, normalized=True, alpha=True)
+DISTRIBS = ['uniform', 'gaussian', 'power', 'exponential']
+LINKMETHS = ['average', 'centroid', 'complete', 'median', 'single', 'ward']
 
 ##########################################################
 def concat_results(resdir):
@@ -311,7 +313,7 @@ def plot_parallel_clsizes(df, nrealiz, linkagemeth, outdir):
 ##########################################################
 def count_method_ranking(df, linkagemeths, linkagemeth, outdir):
     info(inspect.stack()[0][3] + '()')
-    
+
     methidx = np.where(np.array(linkagemeths) == linkagemeth)[0][0]
 
     data = []
@@ -824,18 +826,142 @@ def plot_vectors(dforig, distribs, linkagemeths, label, outdir):
     return vectordata
 
 ##########################################################
+def plot_vectors_all2(vpredorig, nrealiz, outdir):
+    info(inspect.stack()[0][3] + '()')
+    v = vpredorig.copy()
+
+    coords = ['clu1', 'clu2'] # k=2
+    cols = ['linkagemeth'] + coords
+    dims = sorted(np.unique(v.datadim))
+
+    for di in dims:
+        for nm in [1, 2]:
+            for dt in DISTRIBS:
+                v2 = v.loc[(v.datadim == di) & (v.nmodes == nm) & (v.distrib == dt)]
+                param = v2.distribparam.iloc[0]
+                f = 'relev_{}d_{},{},{}.pdf'.format(di, nm, dt, param)
+                outpath = pjoin(outdir, f)
+                plot_vectors2(v2[cols], nm, nrealiz, outpath)
+
+##########################################################
+def plot_vectors2(vpred, nmodes, nrealiz, outpath):
+    palette = utils.hex2rgb(PALETTEHEX, alpha=.8)
+    W = 640; H = 480
+    fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
+
+    origin = [0]
+    if nmodes == 1:
+        xs, ys = [nrealiz], [0]
+    else:
+        xs, ys = [0], [nrealiz]
+
+    ax.quiver(origin, origin, xs, ys, color='#000000', width=.01,
+                    angles='xy', scale_units='xy', scale=1, label='Gtruth',
+                    headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+
+    for j, l in enumerate(LINKMETHS):
+        v = vpred.copy()
+        v = v.loc[(v.linkagemeth == l)]
+        xs = v.clu1.values
+        ys = v.clu2.values
+        ax.quiver(origin, origin, xs, ys,
+                color=palette[j], width=.01,
+                angles='xy', scale_units='xy', scale=1,
+                label=l,
+                headwidth=5, headlength=4, headaxislength=3.5,
+                zorder=1/np.linalg.norm(np.array([xs[0], ys[0]]))+3)
+
+    ax.set_xlim(0, nrealiz); ax.set_ylim(0, nrealiz)
+    ax.set_xlabel(r'$R_1$', fontsize='medium')
+    ax.set_ylabel(r'$R_2$', fontsize='medium')
+    ax.legend()
+    plt.savefig(outpath)
+    plt.close()
+    return 
+
+    origin = np.zeros(2)
+    vectordata = []
+    for i, distrib in enumerate(distribs):
+        xs = np.array([gtruths[distrib][0]*nrealizations])
+        ys = np.array([gtruths[distrib][1]*nrealizations])
+
+        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
+                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
+                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
+
+        for j, linkagemeth in enumerate(linkagemeths):
+            curdf = df[(df.distrib == distrib) & (df.linkagemeth == linkagemeth)]
+
+            inds = np.where(curdf.clsize2 == 0)
+            if len(inds[0]) == 0: rel1avg = 0
+            else: rel1avg = np.sum(curdf.iloc[inds].relev)
+            # else: rel1avg = np.sum(curdf.iloc[inds].relev) / nrealizations
+
+            inds = np.where(curdf.clsize2 != 0)
+            if len(inds[0]) == 0: rel2avg = 0
+            else: rel2avg = np.sum(curdf.iloc[inds].relev)
+            # else: rel2avg = np.sum(curdf.iloc[inds].relev) / nrealizations
+
+            aux = distrib.split(',') # In the form '2,exponential,4'
+            modes = 1 if len(aux) == 2 else 2
+            distrib2 = aux[1]
+            dims = int(label[:-1])
+
+            vectordata.append([dims, modes, distrib2, linkagemeth, rel1avg, rel2avg])
+
+            ax[i, 0].quiver(origin, origin, [rel1avg], [rel2avg],
+                    color=palette[j], width=.01,
+                    angles='xy', scale_units='xy', scale=1,
+                    label=linkagemeth,
+                    headwidth=5, headlength=4, headaxislength=3.5,
+                    zorder=1/np.linalg.norm(np.array([rel1avg, rel2avg]))+3)
+
+            ax[i, 0].set_xlim(0, nrealizations)
+            ax[i, 0].set_ylim(0, nrealizations)
+
+        ax[i, 0].set_xlabel(r'$R_1$', fontsize='medium')
+        ax[i, 0].set_ylabel(r'$R_2$', fontsize='medium')
+        ax[i, 0].legend()
+
+    lab = 'relev_{}_'.format(label)
+    plt.tight_layout(pad=4)
+    utils.export_individual_axis(ax, fig, distribs, outdir, [.7, .5, .15, .1], lab)
+
+    for i, distrib in enumerate(distribs): # Plot
+        ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
+
+    plt.savefig(pjoin(outdir, '{}all.pdf'.format(lab)))
+    return vectordata
+
+##########################################################
+def print_modals_table(vpredorig):
+    """Print table in latex format"""
+    info(inspect.stack()[0][3] + '()')
+
+    vpred = vpredorig.loc[(vpredorig.datadim == 2) & (vpredorig.clrelsize == 0.2)]
+    linkagemeths = sorted(np.unique(vpred.linkagemeth))
+    cols = ['clu{}'.format(i+1) for i in range(4)]
+    for n in [3, 4]:
+        data = []
+        for l in linkagemeths:
+            v = vpred.loc[(vpred.nmodes == n) & (vpred.linkagemeth == l)]
+            data.append([l] + v[cols].values[0].tolist())
+        print(pd.DataFrame(data).to_latex(index=False))
+
+
+##########################################################
 def main(expdir, iconsdir, outdir):
     np.random.seed(0)
     diffdf = pd.read_csv(pjoin(expdir, 'diffnorms.csv'))
+    vpreddf = pd.read_csv(pjoin(expdir, 'vpred.csv'))
     nrealiz = 50
 
-    plot_parallel_dims(diffdf, nrealiz, iconsdir, outdir)
-    plot_parallel_dims_selected(diffdf, nrealiz, iconsdir, outdir)
+    # plot_parallel_dims(diffdf, nrealiz, iconsdir, outdir)
+    # plot_parallel_dims_selected(diffdf, nrealiz, iconsdir, outdir)
     # plot_parallel_clsizes(diffdf, nrealiz, 'single', args.outdir)
     # plot_clsizes(diffdf, nrealiz, 'single', args.outdir)
+    # print_modals_table(vpreddf)
 
-    # resdf = filters_by_dim(resdf, [2, 4, 5, 10])
-    # plot_parallel_all(resdf, iconsdir, '', outdir)
 
     # count_method_ranking(resdf, linkagemeths, 'single', outdir)
     # methscorr = {}
@@ -846,10 +972,8 @@ def main(expdir, iconsdir, outdir):
         # plot_graph(methscorr[nclu], linkagemeths, nclu, outdir)
 
     # scatter_pairwise(resdf, methscorr, linkagemeths, outdir)
-
     # analyze_features_all(args.pardir, outdir)
-
-    # plot_vectors_all(args.pardir, distribs, linkagemeths, outdir)
+    plot_vectors_all2(vpreddf, nrealiz, outdir)
     return
     analyze_features_all(args.pardir, outdir)
     print_single_precision(args.pardir, outdir)
