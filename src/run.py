@@ -144,16 +144,7 @@ def run_all_experiments(linkagemeths, datadim, samplesz, distribs, k, clrelsize,
             for i, distrib in enumerate(data): # Loop-distrib
                 d = data[distrib]
 
-                # try:
-                    # z, clustids, outliers = ut.find_clusters(d, k, clsize, c)
-                # except Exception as e:
-                    # suff = '{};{};{}'.format(distrib, linkagemeth, r)
-                    # np.save(pjoin(errdir, suff + '.npy'), d)
-                    # errors.append(suff)
-                    # continue
-
-                z, clids, outliers = ut.find_clusters(d, k, linkagemeth,
-                                                      metric, clsize, c)
+                z, clids, outliers = ut.find_clusters(d, k, linkagemeth, clsize, c)
 
                 if len(clids) == 0: continue #TODO: DEFINE WHAT TO when errors
 

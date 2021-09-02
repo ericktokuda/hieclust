@@ -22,13 +22,8 @@ import imageio
 import igraph
 
 import utils
+from utils import LINKMETHS, DISTRIBS, PALETTEHEX
 from myutils import create_readme
-
-##########################################################
-PALETTEHEX = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
-COLOURS = utils.hex2rgb(PALETTEHEX, normalized=True, alpha=True)
-DISTRIBS = ['uniform', 'gaussian', 'power', 'exponential']
-LINKMETHS = ['average', 'centroid', 'complete', 'median', 'single', 'ward']
 
 ##########################################################
 def concat_results(resdir):
@@ -167,7 +162,7 @@ def plot_parallel_dims(df, nrealiz, iconsdir, outdir):
         m = 'Icons path {} does not exist!'.format(iconsdir)
         raise Exception(m)
 
-    distribs = ['uniform', 'gaussian', 'power', 'exponential']
+    distribs = DISTRIBS
 
     dims = np.unique(df.datadim)
     if len(dims) < 2:
@@ -213,7 +208,7 @@ def plot_parallel_dims_selected(df, nrealiz, iconsdir, outdir):
         m = 'Icons path {} does not exist!'.format(iconsdir)
         raise Exception(m)
 
-    distribs = ['uniform', 'gaussian', 'power', 'exponential']
+    distribs = DISTRIBS
 
     dims = np.unique(df.datadim)
     if len(dims) < 2:

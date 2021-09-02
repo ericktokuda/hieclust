@@ -22,6 +22,10 @@ from myutils import info, plot
 
 ##########################################################
 NOTFOUND = -1
+DISTRIBS = ['uniform', 'gaussian', 'power', 'exponential']
+LINKMETHS = ['average', 'centroid', 'complete', 'median', 'single', 'ward']
+PALETTEHEX = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#a66139']
+# COLOURS = hex2rgb(PALETTEHEX, normalized=True, alpha=True)
 
 ##########################################################
 def multivariate_normal(x, mean, cov):
@@ -498,7 +502,7 @@ def get_highest_cluster(z, clustids):
     else: return maxid
 
 ##########################################################
-def find_clusters(data, k, linkagemeth, metric, clsize, outliersratio):
+def find_clusters(data, k, linkagemeth, clsize, outliersratio, metric='euclidean'):
     """Return npred, rel, feats, prec"""
     z = linkage(data, linkagemeth, metric)
     n = len(z) + 1
