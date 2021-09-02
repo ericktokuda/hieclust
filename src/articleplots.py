@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark on hierarchical clustering methods
-"""
+"""Generate article plots """
 
 import argparse
 from os.path import join as pjoin
@@ -28,15 +27,7 @@ from myutils.plot import export_subplots
 ##########################################################
 def plot_dendrogram(z, linkagemeth, ax, avgheight, clustids, palette, outliers):
     """Call fancy scipy.dendogram with @clustids colored and with a line with height
-    given by @lthresh
-
-    Args:
-    z(np.ndarray): linkage matrix
-    linkagemeth(str): one the allowed linkage methods in the scipy.dendogram arguments
-    ax(plt.Axis): axis to plot
-    lthres(float): complement of the height
-    clustids(list): list of cluster idss
-    """
+    given by @lthresh """
 
     dists = z[:, 2]
     # dists = (dists - np.min(dists)) / (np.max(dists) - np.min(dists))
@@ -753,6 +744,40 @@ def plot_raw_dendrogram(data, linkagemeth, figscale, outpath):
     )
     plt.savefig(outpath)
     plt.close()
+
+##########################################################
+def plot_dummy_dendrogram(outdir):
+    plt.style.use('ggplot')
+    np.random.seed(0)
+    eps = .05
+    x = np.array([
+        [1,1],
+        [2,1],
+        [4,1],
+        [1,10],
+        [1.5,10],
+        [4,10],
+        ])
+    Z = linkage(x, 'ward')
+    print(Z)
+
+    fig, ax = plt.subplots(1, 2, figsize=(9, 3.2))
+    ax[0].scatter(x[:, 0], x[:, 1])
+    for i, coords in enumerate(x):
+        ax[0].annotate(str(i), (coords[0]+eps, coords[1]+eps))
+
+    ax[0].set_xlim(0.5, 4.5)
+    ax[0].set_ylim(0, 12)
+
+    dendrogram(
+        Z,
+        leaf_rotation=90.,
+        leaf_font_size=8.,
+        ax=ax[1]
+    )
+    ax[1].set_ylim(0, 17)
+    plt.tight_layout(pad=1, w_pad=2)
+    plt.savefig(pjoin(outdir, 'dendr.png'))
 
 ##########################################################
 def main(outdir):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Experimental study of traditional hierarchical clustering methods."""
+"""Run experiments"""
 
 from os.path import join as pjoin
 import os, sys, time, random, argparse, inspect

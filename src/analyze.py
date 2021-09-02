@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark on hierarchical clustering methods
+"""Analyze results from run.py
 """
 
 import argparse
