@@ -730,98 +730,7 @@ def compute_correlation(dforig, nclu, linkagemeths, outdir):
     return corr
 
 ##########################################################
-def plot_vectors_all(pardir, distribs, linkagemeths, outdir):
-    info(inspect.stack()[0][3] + '()')
-    featpath = pjoin(pardir, 'features.csv')
-    if os.path.exists(featpath):
-        plot_vectors(featpath, distribs, linkagemeths, '', outdir)
-
-    vectordata = []
-    files = sorted(os.listdir(pardir))
-    for f in files:
-        dirpath = pjoin(pardir, f)
-        if not os.path.isdir(dirpath): continue
-        if not os.path.exists(pjoin(dirpath, 'features.csv')): continue
-        info(f)
-        featdf = pd.read_csv(pjoin(dirpath, 'features.csv'), sep='|')
-        vectordata.extend(plot_vectors(featdf, distribs, linkagemeths, f,
-            outdir))
-
-    cols = 'dim,modes,distribution,linkagemeth,rel1avg,rel2avg'.split(',')
-    pd.DataFrame(vectordata, columns=cols).to_csv(pjoin(outdir, 'vectors.csv'),
-            index=False)
-
-##########################################################
-def plot_vectors(dforig, distribs, linkagemeths, label, outdir):
-    info(inspect.stack()[0][3] + '()')
-    df = dforig.copy()
-    df = df['distrib,linkagemeth,realiz,avgheight,maxdist,clsize1,clsize2'.split(',')]
-    df['relev'] = (df.maxdist - df.avgheight) / df.maxdist
-
-    nrealizations = len(df[(df.distrib == distribs[0]) & \
-            (df.linkagemeth == linkagemeths[0])])
-
-    nrows = len(distribs); ncols = 1
-    fig, ax = plt.subplots(nrows, ncols, figsize=(ncols*5, nrows*4), squeeze=False)
-    palette = utils.hex2rgb(PALETTEHEX, alpha=.8)
-    gtruths = utils.compute_gtruth_vectors(distribs, nrealizations)
-
-    origin = np.zeros(2)
-    vectordata = []
-    for i, distrib in enumerate(distribs):
-        xs = np.array([gtruths[distrib][0]*nrealizations])
-        ys = np.array([gtruths[distrib][1]*nrealizations])
-
-        ax[i, 0].quiver(origin, origin, xs, ys, color='#000000', width=.01,
-                        angles='xy', scale_units='xy', scale=1, label='Gtruth',
-                        headwidth=5, headlength=4, headaxislength=3.5, zorder=3)
-
-        for j, linkagemeth in enumerate(linkagemeths):
-            curdf = df[(df.distrib == distrib) & (df.linkagemeth == linkagemeth)]
-
-            inds = np.where(curdf.clsize2 == 0)
-            if len(inds[0]) == 0: rel1avg = 0
-            else: rel1avg = np.sum(curdf.iloc[inds].relev)
-            # else: rel1avg = np.sum(curdf.iloc[inds].relev) / nrealizations
-
-            inds = np.where(curdf.clsize2 != 0)
-            if len(inds[0]) == 0: rel2avg = 0
-            else: rel2avg = np.sum(curdf.iloc[inds].relev)
-            # else: rel2avg = np.sum(curdf.iloc[inds].relev) / nrealizations
-
-            aux = distrib.split(',') # In the form '2,exponential,4'
-            modes = 1 if len(aux) == 2 else 2
-            distrib2 = aux[1]
-            dims = int(label[:-1])
-
-            vectordata.append([dims, modes, distrib2, linkagemeth, rel1avg, rel2avg])
-
-            ax[i, 0].quiver(origin, origin, [rel1avg], [rel2avg],
-                    color=palette[j], width=.01,
-                    angles='xy', scale_units='xy', scale=1,
-                    label=linkagemeth,
-                    headwidth=5, headlength=4, headaxislength=3.5,
-                    zorder=1/np.linalg.norm(np.array([rel1avg, rel2avg]))+3)
-
-            ax[i, 0].set_xlim(0, nrealizations)
-            ax[i, 0].set_ylim(0, nrealizations)
-
-        ax[i, 0].set_xlabel(r'$R_1$', fontsize='medium')
-        ax[i, 0].set_ylabel(r'$R_2$', fontsize='medium')
-        ax[i, 0].legend()
-
-    lab = 'relev_{}_'.format(label)
-    plt.tight_layout(pad=4)
-    utils.export_individual_axis(ax, fig, distribs, outdir, [.7, .5, .15, .1], lab)
-
-    for i, distrib in enumerate(distribs): # Plot
-        ax[i, 0].set_ylabel('{}'.format(distrib), size='x-large')
-
-    plt.savefig(pjoin(outdir, '{}all.pdf'.format(lab)))
-    return vectordata
-
-##########################################################
-def plot_vectors_all2(vpredorig, nrealiz, outdir):
+def plot_vectors_all(vpredorig, nrealiz, outdir):
     info(inspect.stack()[0][3] + '()')
     v = vpredorig.copy()
 
@@ -836,10 +745,10 @@ def plot_vectors_all2(vpredorig, nrealiz, outdir):
                 param = v2.distribparam.iloc[0]
                 f = 'relev_{}d_{},{},{}.pdf'.format(di, nm, dt, param)
                 outpath = pjoin(outdir, f)
-                plot_vectors2(v2[cols], nm, nrealiz, outpath)
+                plot_vectors(v2[cols], nm, nrealiz, outpath)
 
 ##########################################################
-def plot_vectors2(vpred, nmodes, nrealiz, outpath):
+def plot_vectors(vpred, nmodes, nrealiz, outpath):
     palette = utils.hex2rgb(PALETTEHEX, alpha=.8)
     W = 640; H = 480
     fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
@@ -943,6 +852,49 @@ def print_modals_table(vpredorig):
             data.append([l] + v[cols].values[0].tolist())
         print(pd.DataFrame(data).to_latex(index=False))
 
+##########################################################
+def plot_inbalance_overlap(diffdf, outdir):
+    """Short description """
+    info(inspect.stack()[0][3] + '()')
+    nrealiz = 50
+    c = plt.rcParams['axes.prop_cycle'].by_key()['color'][0]
+    lw = 2
+    # respath = './set2/results.csv'
+    # info('Loading {}'.format(respath))
+    # df = pd.read_csv(respath, sep='|')
+    df = diffdf[(diffdf.distrib == 'overlap') & (diffdf.linkagemeth == 'single')]
+    alphas = df.distribparam
+    ds = np.array(alphas) / 2
+    xs = (np.max(ds) - ds) /  np.max(ds)
+    ys = df.diffnorm / nrealiz
+    W = 540; H = 405
+    fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
+    ax.plot(xs, ys, c=c, linewidth=lw)
+    ax.set_xlabel('Overlap level')
+    ax.set_ylabel('Acc. difference')
+    # ax.set_ylim(0.1, 1.4)
+    plt.tight_layout()
+    outpath = pjoin(outdir, 'overlap.png')
+    plt.savefig(outpath)
+    breakpoint()
+    
+
+    df2 = df[df.distrib.str.contains('imbalance')]
+
+    info([ float(d.split(',')[2]) for d in df2.distrib ])
+    xs = [ float(d.split(',')[2]) for d in df2.distrib ]
+    xs = (np.array(xs) - .5) * 2
+    ys = df2.single.values
+
+    fig, ax = plt.subplots(figsize=(W*.01, H*.01), dpi=100)
+    ax.plot(xs, ys, c=c, linewidth=lw)
+    # ax.set_xticks([.5, .55, .6, .65, .7])
+    ax.set_xlabel('Imbalance level')
+    ax.set_ylabel('Accumulated error')
+    ax.set_ylim(0.1, 1.4)
+    plt.tight_layout()
+    outpath = pjoin(outdir, 'imbalance.png')
+    plt.savefig(outpath)
 
 ##########################################################
 def main(expdir, iconsdir, outdir):
@@ -968,11 +920,12 @@ def main(expdir, iconsdir, outdir):
 
     # scatter_pairwise(resdf, methscorr, linkagemeths, outdir)
     # analyze_features_all(args.pardir, outdir)
-    plot_vectors_all2(vpreddf, nrealiz, outdir)
-    return
-    analyze_features_all(args.pardir, outdir)
-    print_single_precision(args.pardir, outdir)
-    print_ward_precision(args.pardir, outdir)
+    # plot_vectors_all(vpreddf, nrealiz, outdir)
+    # analyze_features_all(args.pardir, outdir)
+    # print_single_precision(args.pardir, outdir)
+    # print_ward_precision(args.pardir, outdir)
+    plot_inbalance_overlap(diffdf, outdir)
+
     info('Elapsed time:{}'.format(time.time()-t0))
     info('Results are in {}'.format(outdir))
 
